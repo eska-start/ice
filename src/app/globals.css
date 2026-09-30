@@ -1,0 +1,12 @@
+@import "../features/ice-tag/index.css";
+
+/* Keep the original uploader usable alongside the full-viewport game. */
+.archive-page {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+  overscroll-behavior: contain;
+}
