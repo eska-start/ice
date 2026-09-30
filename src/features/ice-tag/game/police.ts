@@ -11,8 +11,8 @@ export const POLICE_TIME = 180;
 export const EXIT_OPEN_AT = 15;
 /** 경기 시작 직후 경찰이 기지에서 대기하는 시간(초) — 도둑이 먼저 달려 나간다 */
 export const COP_HOLD = 4;
-/** 감옥 근처에 머물러야 하는 구출 시간(초) */
-export const RESCUE_TIME = 1.4;
+/** 다른 도둑이 감옥 근처에 2초간 머물러야 동료를 구출할 수 있다 */
+export const RESCUE_TIME = 2.0;
 /**
  * 균형 조정 — 도망자에게 '얼음' 같은 방어 수단이 없어서, 도둑이 조금 더 빠르고 경찰 대시는 더 오래 기다린다.
  * (얼음땡 술래 성능과는 별개이며, 경찰과 도둑 모드에서만 적용)
