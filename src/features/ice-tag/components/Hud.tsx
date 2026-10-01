@@ -116,17 +116,7 @@ export function EdgeMarkers({ hud }: { hud: HudState }) {
 }
 
 export function BagIndicator({ hud }: { hud: HudState }) {
-  if (hud.mode !== 'ojaemi') return null;
-  return (
-    <div className="absolute z-30 pointer-events-none left-1/2 -translate-x-1/2 top-[124px] short:top-[108px]">
-      {hud.hasBag && (
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-white/90 shadow-lg backdrop-blur-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white animate-pulse">
-          <span className="text-base leading-none">🟠</span>
-          <span className="text-[12px] font-extrabold tracking-tight txt-outline-sm leading-none">오재미 보유 중!</span>
-        </div>
-      )}
-    </div>
-  );
+  return null;
 }
 
 export function StatusBanner({ hud }: { hud: HudState }) {
