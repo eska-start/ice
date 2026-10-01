@@ -14,7 +14,7 @@ function Avatar({ p, tagger, police = false }: { p: PlayerStat; tagger: boolean;
       {p.status === 'out' && <span className="absolute -top-2 -right-1 text-xs">{police ? '🚪' : '✖️'}</span>}
       {p.stunned && p.status === 'alive' && <span className="absolute -top-2 -right-1 text-xs">💫</span>}
       {tagger && <span className="absolute -bottom-2 text-[9px] font-black bg-red-600 text-white px-1 rounded">술래</span>}
-      {police && p.role === 'tagger' && <span className="absolute -bottom-2 text-[9px] font-black bg-blue-600 text-white px-1 rounded">경찰</span>}
+      {police && p.role === 'tagger' && <span className="absolute -bottom-2 text-[9px] font-black bg-blue-600 text-white px-1 rounded">술래</span>}
     </div>
   );
 }
