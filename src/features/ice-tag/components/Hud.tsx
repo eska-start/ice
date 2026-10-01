@@ -31,7 +31,7 @@ export function TopBar({ hud, onPause }: { hud: HudState; onPause: () => void })
       {ice || police ? (
         <div className="flex items-start justify-center gap-2 px-2">
           <div className={`flex items-center gap-2 rounded-2xl px-3 py-1.5 shadow-xl border-[3px] border-white/90 ${low ? 'bg-red-500 animate-pulse' : 'bg-slate-900/75'}`}>
-            <span className="text-yellow-300 font-black text-xs">{police ? '🚓 경찰과 도둑' : `ROUND ${hud.round}/${hud.totalRounds}`}</span>
+            <span className="text-yellow-300 font-black text-xs">{police ? '🫥 숨바꼭질' : `ROUND ${hud.round}/${hud.totalRounds}`}</span>
             <span className="text-white font-black text-2xl tabular-nums">⏱ {fmtTime(hud.time)}</span>
           </div>
         </div>
@@ -70,9 +70,8 @@ export function TopBar({ hud, onPause }: { hud: HudState; onPause: () => void })
       {police && hud.police && (
         <div className="flex justify-center mt-1.5">
           <div className={`flex items-center gap-3 rounded-full px-3 py-1 border-2 border-white/80 shadow ${hud.role === 'tagger' ? 'bg-blue-700/85' : 'bg-red-600/85'}`}>
-            <span className="text-white font-black text-xs">{hud.role === 'tagger' ? '🚓 나는 경찰' : '🏃 나는 도둑'}</span>
-            <span className="text-white/90 font-bold text-xs">🏃 {hud.police.free} · 🔒 {hud.police.jailed} · 🚪 {hud.police.escaped}</span>
-            <span className="text-yellow-200 font-black text-xs">{hud.police.exitsOpen ? '🚪 OPEN' : `🚪 ${hud.police.exitIn}s`}</span>
+            <span className="text-white font-black text-xs">{hud.role === 'tagger' ? '👹 나는 술래' : '🫥 나는 숨는 사람'}</span>
+            <span className="text-white/90 font-bold text-xs">🫥 숨는 사람 · 👹 술래</span>
           </div>
         </div>
       )}
@@ -141,16 +140,16 @@ export function StatusBanner({ hud }: { hud: HudState }) {
     else if (hud.role === 'tagger') { text = `🏃 도망팀 ${hud.aliveCount}명 남음 — 잡아라!`; cls = 'bg-red-600/70'; }
   } else if (hud.mode === 'police') {
     const pl = hud.police;
-    if (hud.status === 'frozen') { text = '🔒 감옥에 갇혔어요! 동료 도둑의 구출을 기다려요'; cls = 'bg-amber-500/90'; }
+    if (hud.status === 'frozen') { text = '🫥 변신이 풀렸어요! 술래를 피해 다시 숨으세요'; cls = 'bg-amber-500/90'; }
     else if (hud.stunned) { text = '💫 휘청! 잠시 행동 불능'; cls = 'bg-red-500/85'; }
-    else if (hud.role === 'tagger' && pl && pl.holdIn > 0) { text = `🚓 출동 대기 중... ${pl.holdIn}초`; cls = 'bg-blue-700/75'; }
-    else if (hud.role === 'tagger') { text = pl && pl.jailed > 0 ? `🚓 도둑 ${pl.free}명 도망 중 · 감옥을 지켜요!` : `🚓 도둑 ${pl ? pl.free : 0}명 남음 — 잡아서 감옥으로!`; cls = 'bg-blue-700/75'; }
-    else if (pl && pl.holdIn > 0) { text = `🏃 지금 도망치세요! 경찰 출동까지 ${pl.holdIn}초`; cls = 'bg-slate-800/80'; }
+    else if (hud.role === 'tagger' && pl && pl.holdIn > 0) { text = `👹 술래 준비 중... ${pl.holdIn}초`; cls = 'bg-blue-700/75'; }
+    else if (hud.role === 'tagger') { text = pl && pl.jailed > 0 ? `👹 숨는 사람 ${pl.free}명 남음 · 주변을 살펴보세요!` : `👹 숨는 사람 ${pl ? pl.free : 0}명 남음 — 찾아보세요!`; cls = 'bg-blue-700/75'; }
+    else if (pl && pl.holdIn > 0) { text = `🫥 지금 숨으세요! 술래가 곧 움직입니다`; cls = 'bg-slate-800/80'; }
     else if (pl?.rescuing) { text = `🔓 구출 중... ${Math.round(pl.rescue * 100)}%`; cls = 'bg-emerald-500/90'; }
-    else if (hud.danger) { text = '⚠️ 경찰 접근! 도망치세요!'; cls = 'bg-red-500/90'; }
-    else if (pl && pl.jailed > 0) { text = '🔒 감옥에 다가가 잠시 머물면 동료를 구출해요!'; cls = 'bg-yellow-400/95 text-slate-900'; }
-    else if (pl?.exitsOpen) { text = '🚪 탈출구가 열렸어요! 도착하면 탈출!'; cls = 'bg-emerald-500/90'; }
-    else { text = `🚪 탈출구 오픈까지 ${pl ? pl.exitIn : 0}초 — 경찰을 피해요`; cls = 'bg-slate-800/80'; }
+    else if (hud.danger) { text = '⚠️ 술래 접근! 변신하거나 도망치세요!'; cls = 'bg-red-500/90'; }
+    else if (pl && pl.jailed > 0) { text = '🫥 주변 사물로 변신해 술래를 피하세요'; cls = 'bg-yellow-400/95 text-slate-900'; }
+    else if (pl?.exitsOpen) { text = '🫥 변신 상태를 유지하며 끝까지 살아남으세요'; cls = 'bg-emerald-500/90'; }
+    else { text = `🫥 술래를 피해 살아남으세요`; cls = 'bg-slate-800/80'; }
   } else {
     if (hud.stunned) { text = '💫 휘청! 잠시 행동 불능'; cls = 'bg-red-500/85'; }
     else if (!hud.hasBag) { text = '🟠 근처 오재미를 주워요!'; cls = 'bg-orange-500/85'; }
@@ -178,7 +177,7 @@ export function Countdown({ hud }: { hud: HudState }) {
     <div className="absolute inset-0 z-40 pointer-events-none flex flex-col items-center justify-center">
       {hud.phase === 'countdown' && (
         <div className="mb-3 short:mb-1 wood rounded-2xl px-5 py-2 short:py-1 pop-in text-center max-w-[92vw]">
-          <div className="text-white font-black text-xl txt-outline-sm">{hud.mode === 'police' ? `경찰과 도둑 · ${Math.round(hud.time)} SEC` : `ROUND ${hud.round}/${hud.totalRounds} · 90 SEC`}</div>
+          <div className="text-white font-black text-xl txt-outline-sm">{hud.mode === 'police' ? `🫥 숨바꼭질 · ${Math.round(hud.time)} SEC` : `ROUND ${hud.round}/${hud.totalRounds} · 90 SEC`}</div>
           {hud.mode === 'icetag' && (
             <div className={`mt-1 font-black text-sm ${hud.role === 'tagger' ? 'text-red-200' : 'text-sky-200'}`}>
               {hud.role === 'tagger' ? '👹 당신은 술래! 도망팀을 잡아라!' : `🏃 술래 ${hud.taggerName}에게서 도망쳐요! 위험하면 얼음!`}
@@ -186,7 +185,7 @@ export function Countdown({ hud }: { hud: HudState }) {
           )}
           {hud.mode === 'police' && (
             <div className={`mt-1 font-black text-sm ${hud.role === 'tagger' ? 'text-blue-200' : 'text-red-200'}`}>
-              {hud.role === 'tagger' ? '🚓 당신은 경찰! 도둑을 잡아 감옥에 가두세요!' : '🏃 당신은 도둑! 경찰을 피해 탈출구로 도망치세요!'}
+              {hud.role === 'tagger' ? '👹 당신은 술래! 숨는 사람을 모두 찾아내세요!' : '🫥 당신은 숨는 사람! 술래를 피해 살아남으세요!'}
             </div>
           )}
           {hud.mode === 'ojaemi' && (
@@ -210,8 +209,8 @@ export function RoundEnd({ hud }: { hud: HudState }) {
     if (r.winner === 'tagger') { title = '모두 잡았다!'; sub = r.reason === 'all_frozen' ? '남은 도망팀이 모두 얼음 상태! 술래 승리' : '도망팀 전원 탈락! 술래 승리'; color = 'from-red-400 to-red-600'; }
     else { title = '시간 초과!'; sub = `도망팀 ${r.survivors}명 생존! 도망팀 승리`; color = 'from-sky-400 to-blue-600'; }
   } else if (hud.mode === 'police') {
-    if (r.winner === 'tagger') { title = '🚓 경찰 승리!'; sub = '도둑을 모두 감옥에 가뒀어요!'; color = 'from-blue-400 to-blue-700'; }
-    else { title = '🏃 도둑 승리!'; sub = r.reason === 'escaped' ? '탈출구 도착! 탈출 성공!' : '제한 시간 동안 버텼어요!'; color = 'from-red-400 to-red-600'; }
+    if (r.winner === 'tagger') { title = '👹 술래 승리!'; sub = '숨는 사람을 모두 찾아냈어요!'; color = 'from-blue-400 to-blue-700'; }
+    else { title = '🫥 숨는 사람 승리!'; sub = '제한 시간 동안 끝까지 살아남았어요!'; color = 'from-red-400 to-red-600'; }
   } else {
     title = r.winner === 'red' ? 'RED 승리!' : 'BLUE 승리!';
     sub = r.reason === 'golden' ? '연장전 골든골!' : `${hud.red} : ${hud.blue}`;
@@ -246,7 +245,7 @@ export function FinalResult({ hud, onRestart, onMenu, onNextStage, restartLabel 
   const grad = f.draw ? 'from-slate-400 to-slate-600' : f.playerWon ? 'from-amber-300 to-orange-500' : 'from-slate-500 to-slate-700';
   const stage = f.stage ? STAGES[f.stage - 1] : null;
   const pr = f.roundResults[0];
-  const policeLine = pr?.winner === 'tagger' ? '🚓 경찰팀 승리 · 도둑 전원 체포' : pr?.reason === 'escaped' ? '🏃 도둑팀 승리 · 탈출 성공' : '🏃 도둑팀 승리 · 시간 종료';
+  const policeLine = pr?.winner === 'tagger' ? '👹 술래 승리 · 숨는 사람 전원 발견' : '🫥 숨는 사람 승리 · 시간 종료';
   return (
     // portrait: bottom sheet · landscape: side panel on the right so the 3D victory pose stays visible on the left
     <div
@@ -289,7 +288,7 @@ export function FinalResult({ hud, onRestart, onMenu, onNextStage, restartLabel 
                 <tr key={i} className={`${p.isPlayer ? 'bg-yellow-100' : ''} font-bold`}>
                   <td className={`text-left py-0.5 ${ice ? 'text-slate-700' : p.team === 'red' ? 'text-red-500' : 'text-blue-500'}`}>{ANIMAL_INFO[p.animal].emoji} {p.name}</td>
                   {ice ? (<><td className="text-center">{p.roundsWon}</td><td className="text-center">{p.outs}</td><td className="text-center">{p.freezes}</td><td className="text-center">{p.thaws}</td><td className="text-center">{p.tags}</td><td className="text-center">{Math.round(p.survive)}s</td><td className="text-center">{p.items}</td><td className="text-center">{p.dashes}</td></>)
-                    : police ? (<><td className="text-center">{p.role === 'tagger' ? '경찰' : '도둑'}</td><td className="text-center">{p.tags}</td><td className="text-center">{p.thaws}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>) : (<><td className="text-center">{p.hits}</td><td className="text-center">{p.hitsTaken}</td><td className="text-center">{p.throws}</td><td className="text-center">{p.dodges}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>)}
+                    : police ? (<><td className="text-center">{p.role === 'tagger' ? '술래' : '숨는 사람'}</td><td className="text-center">{p.tags}</td><td className="text-center">{p.thaws}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>) : (<><td className="text-center">{p.hits}</td><td className="text-center">{p.hitsTaken}</td><td className="text-center">{p.throws}</td><td className="text-center">{p.dodges}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>)}
                 </tr>
               ))}
             </tbody>
