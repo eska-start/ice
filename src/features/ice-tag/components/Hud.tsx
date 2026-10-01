@@ -164,7 +164,7 @@ export function StatusBanner({ hud }: { hud: HudState }) {
 
 export function Toasts({ toasts }: { toasts: Toast[] }) {
   return (
-    <div className="absolute left-0 right-0 z-30 pointer-events-none flex flex-col items-center gap-1 top-[24%] landscape:top-[34%]">
+    <div className="absolute left-0 right-0 z-30 pointer-events-none flex flex-col items-center gap-1 top-[24%] landscape:top-[42%]">
       {toasts.map((t) => <div key={t.id} className="toast-up font-black text-lg short:text-base txt-outline whitespace-nowrap" style={{ color: t.color }}>{t.text}</div>)}
     </div>
   );
