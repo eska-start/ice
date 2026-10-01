@@ -520,7 +520,7 @@ export class Game {
     this.projectiles = []; this.pickups = []; this.flyBags = []; this.bananas = []; this.homings = [];
     this.fx.clearTexts();
     const taggerId = this.mode === 'icetag' ? this.taggerOrder[(this.round - 1) % 3] : -1;
-    const policeStart = this.mode === 'police' ? this.assignPoliceRoles() : null;
+    const policeStart = this.mode === 'police' ? this.assignHideRoles() : null;
     let ri = 0;
     const idx = { red: 0, blue: 0 };
     for (const c of this.chars) {
@@ -554,6 +554,8 @@ export class Game {
       c.roundWon = false; c.rs = { thaws: 0, items: 0, out: false };
       c.m.root.visible = true; c.m.root.scale.setScalar(1.15);
       c.m.ufoBeam.visible = false; c.m.moto.visible = false; c.m.jellyBlob.visible = false; c.m.stars.visible = false; c.m.ice.visible = false;
+      if (c.hideProp) { c.hideProp.mesh.visible = false; c.hideProp = null; }
+      c.hideT = 0; c.hideStillT = 0; c.hideMission = 0;
       c.ai.goal = null; c.ai.target = null; c.ai.rescue = null; c.ai.dodgeT = 0; c.ai.throwCd = rand(0.4, 1.4); c.ai.wanderT = 0;
       c.ai.path.length = 0; c.ai.pathT = 0; c.ai.stuckT = 0; c.ai.stuckCount = 0; c.ai.unstickT = 0; c.ai.lastPos.copy(c.pos);
       this.setLabel(c, this.mode === 'icetag' && c.role === 'tagger' ? '술래' : null, '#ff6b6b', 1.0);
@@ -565,11 +567,14 @@ export class Game {
       for (let i = 0; i < 2 + this.chars.length; i++) this.spawnAtPoint();
       for (const c of this.chars) this.spawnAround(c.pos.x, c.pos.z, 1.8, 3.2);
     }
-    this.phase = 'countdown'; this.phaseT = 0; this.time = this.mode === 'police' ? POLICE_TIME : ROUND_TIME; this.overtime = false; this.lastCountdown = -1;
+    this.phase = 'countdown'; this.phaseT = 0; this.time = this.mode === 'police' ? HIDE_TIME : ROUND_TIME; this.overtime = false; this.lastCountdown = -1;
     this.hero = null; this.spectateIdx = 0;
     if (this.mode === 'police') {
-      this.resetPolice();
-      if (!this.demo) { const pp = this.player; this.toast(pp.role === 'tagger' ? '🚓 당신은 경찰! 도둑을 잡아 감옥에 가두세요!' : '🏃 당신은 도둑! 경찰을 피해 탈출구로 도망치세요!', pp.role === 'tagger' ? '#8fbcff' : '#ffb3b3'); }
+      this.resetHideState();
+      if (!this.demo) {
+        const pp = this.player;
+        this.toast(pp.role === 'tagger' ? '🔎 당신은 술래! 움직이는 사물을 찾아보세요!' : '🫥 당신은 숨는 팀! 주변 사물로 변신해 살아남으세요!', pp.role === 'tagger' ? '#ff9a9a' : '#d9d3ff');
+      }
     }
     if (this.mode === 'icetag' && !this.demo && this.netRole !== 'client') {
       const p = this.player;
