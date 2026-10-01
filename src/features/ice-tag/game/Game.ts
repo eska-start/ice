@@ -762,6 +762,7 @@ export class Game {
     const p = new THREE.Mesh(new THREE.SphereGeometry(2.3, 20, 12), new THREE.MeshBasicMaterial({ color: 0x9da6b8, transparent: true, opacity: 0.18, depthWrite: false }));
     p.position.set(c.pos.x, 1.1, c.pos.z); this.scene.add(p);
     const born = this.elapsed;
+    for (const cop of this.chars) if (cop !== c && cop.role === 'tagger' && cop.status === 'alive' && cop.pos.distanceTo(c.pos) < 4.5) this.applyStun(cop, 'bump', 1.0);
     const smoke = () => { if (!p.parent) return; const age = this.elapsed - born; p.scale.setScalar(0.8 + age * 1.2); (p.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.18 * (1 - age / 2)); if (age >= 2) { this.scene.remove(p); return; } requestAnimationFrame(smoke); };
     smoke();
     this.toastFor(c, '💨 연막탄! 경찰 시야를 흐립니다!', '#d5dbe8');
@@ -1010,7 +1011,7 @@ export class Game {
       const tx = f.jail.x + Math.sin(a) * 3.3, tz = f.jail.z + Math.cos(a) * 3.3;
       const s = this.nav.isFree(tx, tz) ? null : this.nav.snap(tx, tz);
       const px = s ? s.x : tx, pz = s ? s.y : tz;
-      r.status = 'alive'; r.iceT = 0; r.thawT = 0.5; r.grace = 1.8; r.freezeCd = 0;
+      r.status = 'alive'; r.iceT = 0; r.thawT = 0.5; r.grace = 1.8; r.freezeCd = 0; r.motoT = 1.5;
       r.pos.set(px, 0, pz); r.vel.set(0, 0, 0); r.facing = a;
       r.ai.think = 0; r.ai.goal = null; r.ai.path.length = 0;
       this.setLabel(r, '🏃 도둑', '#ffa0a0', 0.8);
