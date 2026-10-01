@@ -2496,7 +2496,13 @@ export class Game {
       m.ice.visible = false;
       return;
     }
+    if (this.mode === 'police' && c.role === 'runner' && c.hideProp) {
+      m.root.visible = false;
+      m.ring.visible = false;
+      return;
+    }
     m.ring.visible = true;
+    m.root.visible = true;
     m.root.position.set(c.pos.x, c.lift, c.pos.z);
     m.root.rotation.y = c.facing;
     m.ring.position.y = 0.03 - c.lift + 0.001;
