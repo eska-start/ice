@@ -3198,7 +3198,15 @@ export class Game {
   }
 
   buildMarkers(): Marker[] {
-    if (this.mode === 'police') return this.buildPoliceMarkers();
+    if (this.mode === 'police') {
+      const p = this.player;
+      if (p.role === 'tagger') return [];
+      const v = tmpV.set(this.tagger.pos.x, this.tagger.lift + 1, this.tagger.pos.z).project(this.camera);
+      if (v.z > 1 || (Math.abs(v.x) < 0.95 && Math.abs(v.y) < 0.95)) return [];
+      let x = v.z > 1 ? -v.x : v.x, y = v.z > 1 ? -v.y : v.y;
+      const angle = Math.atan2(-y, x); const m = Math.max(Math.abs(x) / 0.88, y > 0 ? y / 0.5 : -y / 0.38, 1); x /= m; y /= m;
+      return [{ x: (x + 1) / 2, y: (1 - y) / 2, angle, team: this.tagger.team, animal: this.tagger.animal, frozen: false, tagger: true }];
+    }
     const p = this.player;
     const list: Char[] = [];
     if (this.mode === 'ojaemi') list.push(...this.chars.filter((e) => e.team !== p.team));
@@ -3252,7 +3260,7 @@ export class Game {
       roundResults: this.roundResults.map((r) => ({ ...r })), roundWinner: this.roundWinner, roundReason: this.roundReason,
       players: this.playerStats(), markers: this.phase === 'playing' || this.phase === 'countdown' ? this.buildMarkers() : [],
       stageGoal: this.stage ? this.stage.goal : null, stageProgress, final: this.finalSummary,
-      police: isPolice ? this.policeHud() : null,
+      police: null,
     });
   }
 }
