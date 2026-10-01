@@ -191,7 +191,7 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
       <div className="relative w-full h-full pointer-events-auto">
         {/* MAIN slot: 던지기 (오재미) · 얼음! (도망자) · 안내 (술래 — 몸이 닿으면 잡아요) */}
         {hud.mode === 'ojaemi' && (
-          <ActionBtn label="던지기" icon="🎯" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#ffa94d,#e8622a)" disabled={st || !hud.hasBag || hud.throwing} onPress={onPrimary} badge={hud.hasBag ? '1' : '0'} keyHint={hint(H.primary)} />
+          <ActionBtn label="던지기" icon="🎯" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#ffa94d,#e8622a)" disabled={st || !hud.hasBag || hud.throwing} onPress={onPrimary} badge={hud.hasBag ? '1' : '0'} keyHint={hint(hud.mode === 'ojaemi' && control === 'mouse' ? '좌클릭' : H.primary)} />
         )}
         {isRunner && (
           <ActionBtn label="얼음!" icon="❄️" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#7fd0ff,#2378d8)" disabled={st || !hud.canFreeze} cooldown={hud.freezeCd} glow={hud.danger && hud.canFreeze && !hud.lastAlive} onPress={onPrimary} keyHint={hint(H.primary)} />
@@ -237,7 +237,7 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
           color="linear-gradient(180deg,#ff9ee0,#d8479f)"
           disabled={st || !hud.item}
           onPress={onItem}
-          keyHint={hint(H.item)}
+          keyHint={hint(control === 'mouse' ? '휠클릭' : H.item)}
         />
       </div>
     </div>
