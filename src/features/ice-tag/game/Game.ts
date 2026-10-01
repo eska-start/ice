@@ -891,6 +891,7 @@ export class Game {
   }
 
   eliminate(r: Char, tg: Char) {
+    if (r.hideProp) { r.hideProp.mesh.visible = false; r.hideProp = null; }
     r.status = 'out'; r.outT = 0; r.st.outs++; r.rs.out = true;
     r.stun = 0; r.stunType = null; r.lift = 0; r.item = null; r.bag = false; r.motoT = 0; r.jellyT = 0; r.vel.set(0, 0, 0);
     r.m.ufoBeam.visible = false; r.m.moto.visible = false; r.m.jellyBlob.visible = false;
