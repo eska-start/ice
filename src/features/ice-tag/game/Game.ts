@@ -130,7 +130,7 @@ export class Game {
   /** 경찰과 도둑: 감옥 · 탈출구 구조물과 규칙 상태 (다른 모드에서는 사용하지 않음) */
   police: PoliceField | null = null;
   policeStarts: { cops: THREE.Vector2[]; robbers: THREE.Vector2[] } = { cops: [], robbers: [] };
-  policeT = 0; rescueT = 0; exitOpen = false; rescuer: Char | null = null;
+  policeT = 0; rescueT = 0; exitOpen = false; rescuer: Char | null = null; policeSkillCd = 0; policeFlashT = 0;
   policeLabels: THREE.Sprite[] = []; exitLabels: THREE.Sprite[] = [];
   /** players per team (오재미 1 / 2 / 3; 얼음땡 keeps 3 for layout purposes) */
   teamSize: TeamSize = 3;
@@ -738,7 +738,19 @@ export class Game {
 
   // ---- actions usable for any character (local player or remote human on the host)
   actPrimary(c: Char) {
-    if (this.mode === 'police') return; // 경찰과 도둑: 주 행동 버튼 없음 (닿으면 체포 · 접근하면 구출)
+    if (this.mode === 'police') {
+      if (!this.canAct(c) || this.policeSkillCd > 0) return;
+      if (c.role === 'tagger') {
+        this.policeSkillCd = 12; this.policeFlashT = 2;
+        this.fx.emit('spark', tmpV.set(c.pos.x, 1.4, c.pos.z), 28, 7, 0.8, 4, 1.4);
+        this.toastFor(c, '🚨 사이렌 플래시! 2초간 도둑 위치가 보여요!', '#9dffb0');
+      } else if (c.item === 'banana') {
+        this.useItem(c); this.policeSkillCd = 12;
+      } else {
+        this.policeSkillCd = 12; this.applyRobberSmoke(c);
+      }
+      return;
+    }
     if (this.mode === 'ojaemi') this.actThrow(c);
     else if (c.role === 'runner') {
       if (!this.canAct(c)) return;
@@ -746,6 +758,15 @@ export class Game {
       this.freeze(c);
     }
   }
+  applyRobberSmoke(c: Char) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(2.3, 20, 12), new THREE.MeshBasicMaterial({ color: 0x9da6b8, transparent: true, opacity: 0.18, depthWrite: false }));
+    p.position.set(c.pos.x, 1.1, c.pos.z); this.scene.add(p);
+    const born = this.elapsed;
+    const smoke = () => { if (!p.parent) return; const age = this.elapsed - born; p.scale.setScalar(0.8 + age * 1.2); (p.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.18 * (1 - age / 2)); if (age >= 2) { this.scene.remove(p); return; } requestAnimationFrame(smoke); };
+    smoke();
+    this.toastFor(c, '💨 연막탄! 경찰 시야를 흐립니다!', '#d5dbe8');
+  }
+
   actDash(c: Char, mv: THREE.Vector3) {
     if (!this.canAct(c)) return;
     const dir = mv.lengthSq() > 0.01 ? mv.clone().normalize() : new THREE.Vector3(Math.sin(c.facing), 0, Math.cos(c.facing));
@@ -940,7 +961,7 @@ export class Game {
   }
 
   resetPolice() {
-    this.policeT = 0; this.rescueT = 0; this.exitOpen = false; this.rescuer = null;
+    this.policeT = 0; this.rescueT = 0; this.exitOpen = false; this.rescuer = null; this.policeSkillCd = 0; this.policeFlashT = 0;
     this.refreshExitLabels(false);
     this.police?.reset();
   }
@@ -2158,6 +2179,7 @@ export class Game {
   // ------------------------------------------------------------ char update
   updateChar(c: Char, dt: number) {
     const m0 = (v: number) => Math.max(0, v - dt);
+    this.policeSkillCd = m0(this.policeSkillCd); this.policeFlashT = m0(this.policeFlashT);
     c.dashCd = m0(c.dashCd); c.pickT = m0(c.pickT); c.invuln = m0(c.invuln); c.recover = m0(c.recover); c.jellyT = m0(c.jellyT);
     c.bumpCd = m0(c.bumpCd); c.grace = m0(c.grace); c.freezeCd = m0(c.freezeCd); c.thawT = m0(c.thawT); c.tagAnim = m0(c.tagAnim);
     if (c.motoT > 0) c.motoT = m0(c.motoT);
@@ -2690,7 +2712,7 @@ export class Game {
         if (e === p || e.status !== 'alive') { if (e !== p && e.status === 'frozen') e.m.root.visible = true; continue; }
         const dx = e.pos.x - p.pos.x, dz = e.pos.z - p.pos.z, d = Math.hypot(dx, dz);
         const facingX = Math.sin(p.facing), facingZ = Math.cos(p.facing);
-        const front = d < 3 || (dx * facingX + dz * facingZ) / Math.max(d, 0.001) > 0.45;
+        const front = d < 3 || this.policeFlashT > 0 || (dx * facingX + dz * facingZ) / Math.max(d, 0.001) > 0.45;
         e.m.root.visible = d < 2.5 || (front && lineOfSight(this.world.colliders, p.pos.x, p.pos.z, e.pos.x, e.pos.z));
       }
     }
