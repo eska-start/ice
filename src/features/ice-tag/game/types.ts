@@ -232,6 +232,8 @@ export interface HudState {
   stageProgress: string | null;
   final: FinalSummary | null;
   police?: PoliceHud | null;
+  hideTransformed: boolean;
+  hideCanTransform: boolean;
 }
 
 export interface Toast {
