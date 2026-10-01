@@ -53,7 +53,8 @@ export function pcRowsFor(mode: Mode, role: Role, status: PStatus, control: PcCo
   if (mode === 'icetag' && status === 'out') {
     rows.push({ keys: KEY_HINT.spectate, action: '관전 전환' });
   } else {
-    if (mode === 'ojaemi') rows.push({ keys: mouse ? 'Space / J' : KEY_HINT.primary, action: '던지기' });
+    if (mode === 'police' && role === 'runner') rows.push({ keys: KEY_HINT.primary, action: '숨기 / 변신 해제' });
+    else if (mode === 'ojaemi') rows.push({ keys: mouse ? 'Space / J' : KEY_HINT.primary, action: '던지기' });
     else if (mode === 'icetag' && role === 'runner') rows.push({ keys: KEY_HINT.primary, action: '얼음!' });
     if (mouse) rows.push({ keys: '우클릭 / Shift·L', action: '커서 방향 대시' });
     rows.push({ keys: mouse ? '휠클릭 / E' : KEY_HINT.item, action: '아이템' });
