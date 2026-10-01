@@ -957,6 +957,149 @@ export class Game {
     return out;
   }
 
+  // ------------------------------------------------------------ 숨바꼭질
+  makeHideProp(kind: HideProp['kind'], x: number, z: number): HideProp {
+    const g = new THREE.Group();
+    const mat = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.82 });
+    if (kind === 'pot') {
+      const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.48, 0.7, 12), mat(0xc9794f)); pot.position.y = 0.35; g.add(pot);
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.58, 12, 8), mat(this.theme.night ? 0x477f50 : 0x5da85b)); leaf.scale.set(0.8, 1.1, 0.8); leaf.position.y = 1.0; g.add(leaf);
+    } else if (kind === 'crate') {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), mat(0xb07a48)); box.position.y = 0.48; g.add(box);
+      const a = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 0.12), mat(0x7c4d2e)); a.position.y = 0.48; g.add(a);
+      const b = a.clone(); b.rotation.y = Math.PI / 2; g.add(b);
+    } else if (kind === 'rock') {
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.72, 0), mat(0x8e8b83)); rock.scale.set(1.15, 0.75, 0.95); rock.position.y = 0.48; rock.rotation.set(0.1, Math.random() * 6.28, 0.08); g.add(rock);
+    } else {
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.35, 10), mat(0x805538)); trunk.position.y = 0.68; g.add(trunk);
+      const crown = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 8), mat(this.theme.leaf[0])); crown.scale.y = 1.15; crown.position.y = 1.55; g.add(crown);
+    }
+    g.position.set(x, 0, z); g.rotation.y = Math.random() * Math.PI * 2; g.castShadow = true;
+    this.scene.add(g);
+    return { kind, mesh: g, x, z };
+  }
+
+  initHideMap() {
+    const kinds: HideProp['kind'][] = ['pot', 'crate', 'rock', 'tree'];
+    const props: HideProp[] = [];
+    const occupied: THREE.Vector2[] = [];
+    for (let tries = 0; tries < 240 && props.length < 42; tries++) {
+      const x = rand(-25.5, 25.5), z = rand(-31.5, 31.5);
+      if (Math.abs(x) < 8 && Math.abs(z) < 10) continue;
+      if (pointBlocked(this.world.colliders, x, z, 0.8)) continue;
+      if (occupied.some((p) => p.distanceTo(new THREE.Vector2(x, z)) < 2.1)) continue;
+      occupied.push(new THREE.Vector2(x, z));
+      const kind = kinds[props.length % kinds.length];
+      props.push(this.makeHideProp(kind, x, z));
+    }
+    this.hideProps = props;
+    this.hideMissionTotal = 2;
+  }
+
+  assignHideRoles(): Map<number, THREE.Vector2> {
+    const ids = shuffle(this.chars.map((c) => c.id));
+    const taggerId = ids[0];
+    const out = new Map<number, THREE.Vector2>();
+    const spots = shuffle(this.world.spawnPoints);
+    let si = 0;
+    for (const c of this.chars) {
+      c.role = c.id === taggerId ? 'tagger' : 'runner';
+      c.team = c.role === 'tagger' ? 'red' : 'blue';
+      c.m.setTeam(c.team);
+      const p = spots[si++ % spots.length];
+      out.set(c.id, p);
+    }
+    return out;
+  }
+
+  resetHideState() {
+    for (const c of this.chars) {
+      c.hideProp = null; c.hideT = 0; c.hideStillT = 0; c.hideMission = 0;
+      c.m.root.visible = true;
+    }
+  }
+
+  nearestHideProps(c: Char, radius = 6) {
+    return this.hideProps.filter((p) => Math.hypot(p.x - c.pos.x, p.z - c.pos.z) <= radius)
+      .sort((a, b) => Math.hypot(a.x - c.pos.x, a.z - c.pos.z) - Math.hypot(b.x - c.pos.x, b.z - c.pos.z));
+  }
+
+  toggleHide(c: Char) {
+    if (this.mode !== 'police' || c.role !== 'runner' || !this.canAct(c)) return;
+    if (c.hideProp) {
+      c.hideProp.mesh.visible = false;
+      c.hideProp = null; c.hideT = 0; c.hideStillT = 0;
+      c.m.root.visible = true;
+      this.toastFor(c, '🐾 변신 해제! 다시 움직여요', '#d9d3ff');
+      return;
+    }
+    const nearby = this.nearestHideProps(c, 5.5);
+    if (!nearby.length) { this.toastFor(c, '🔍 주변에 숨을 만한 사물이 없어요', '#d9d3ff'); return; }
+    const chosen = pick(nearby.slice(0, Math.min(4, nearby.length)));
+    const proxy = this.makeHideProp(chosen.kind, c.pos.x, c.pos.z);
+    proxy.mesh.scale.setScalar(0.96 + Math.random() * 0.08);
+    c.hideProp = proxy; c.hideT = 0; c.hideStillT = 0;
+    c.m.root.visible = false;
+    c.hideMission = Math.min(this.hideMissionTotal, c.hideMission + 1);
+    const name = chosen.kind === 'pot' ? '화분' : chosen.kind === 'crate' ? '상자' : chosen.kind === 'rock' ? '바위' : '나무';
+    this.toastFor(c, '🫥 ' + name + '으로 변신!', '#d9d3ff');
+  }
+
+  updateHide(dt: number) {
+    if (this.phase !== 'playing') return;
+    const tagger = this.tagger;
+    for (const c of this.runners) {
+      if (!c.hideProp || c.status !== 'alive') continue;
+      c.hideT += dt;
+      if (c.vel.length() > 0.15) c.hideStillT = 0; else c.hideStillT += dt;
+      c.hideProp.x = c.pos.x; c.hideProp.z = c.pos.z; c.hideProp.mesh.position.set(c.pos.x, 0, c.pos.z);
+      const warn = Math.max(0, Math.min(1, (c.hideStillT - HIDE_STILL_HINT) / 4));
+      const wobble = warn * 0.14;
+      c.hideProp.mesh.rotation.z = Math.sin(this.elapsed * (5 + warn * 7) + c.id) * wobble;
+      c.hideProp.mesh.rotation.x = Math.cos(this.elapsed * (4 + warn * 6) + c.id) * wobble * 0.7;
+      c.hideProp.mesh.position.y = Math.abs(Math.sin(this.elapsed * (5 + warn * 6) + c.id)) * warn * 0.05;
+      if (tagger && tagger.status === 'alive' && Math.hypot(tagger.pos.x - c.pos.x, tagger.pos.z - c.pos.z) < 1.05) {
+        c.hideProp.mesh.visible = false; c.hideProp = null; c.m.root.visible = true; c.hideStillT = 0;
+        c.grace = 0.35; c.st.tags++;
+        this.fx.emit('spark', tmpV.set(c.pos.x, 1, c.pos.z), 14, 4, 0.5, 3, 1);
+        this.fx.floatText('발각!', '#ff9a9a', tmpV.set(c.pos.x, 2.5, c.pos.z), 1.4);
+        this.toastFor(c, '👀 들켰어요! 변신이 풀렸어요', '#ff9a9a');
+      }
+    }
+  }
+
+  aiHideSeeker(c: Char) {
+    const ai = c.ai, D = this.diff;
+    if (ai.think > 0) { this.moveToGoal(c); return; }
+    ai.think = D.think * rand(1.5, 2.6);
+    const suspicious = this.hideProps.filter((p) => Math.hypot(p.x - c.pos.x, p.z - c.pos.z) < 10);
+    if (suspicious.length && Math.random() < 0.42) {
+      const p = pick(suspicious); ai.goal = new THREE.Vector3(p.x + rand(-0.8, 0.8), 0, p.z + rand(-0.8, 0.8));
+    } else ai.goal = this.wanderPoint(c, null);
+    if (Math.random() < 0.18 && this.hideProps.length) {
+      const p = pick(this.hideProps.filter((x) => Math.hypot(x.x - c.pos.x, x.z - c.pos.z) < 14).length ? this.hideProps.filter((x) => Math.hypot(x.x - c.pos.x, x.z - c.pos.z) < 14) : this.hideProps);
+      ai.goal = new THREE.Vector3(p.x, 0, p.z);
+    }
+    this.moveToGoal(c);
+  }
+
+  aiHideRunner(c: Char) {
+    const ai = c.ai, D = this.diff, tg = this.tagger;
+    if (!c.hideProp) {
+      if (ai.think <= 0) {
+        ai.think = D.think * rand(1.5, 2.5);
+        const d = Math.hypot(c.pos.x - tg.pos.x, c.pos.z - tg.pos.z);
+        if (d < 9) ai.goal = this.fleeGoal(c, this.fleeDir(c, tg), 7);
+        else {
+          const props = this.nearestHideProps(c, 5.5);
+          if (props.length) { ai.goal = new THREE.Vector3(props[0].x, 0, props[0].z); if (d > 12) this.toggleHide(c); }
+          else ai.goal = this.wanderPoint(c, tg);
+        }
+      }
+    } else if (c.hideStillT > HIDE_STILL_HINT + 3 && Math.random() < 0.01) this.toggleHide(c);
+    this.moveToGoal(c);
+  }
+
   initPolice() {
     const f = this.police!;
     const spot = (x: number, z: number) => (this.nav.isFree(x, z) ? new THREE.Vector2(x, z) : this.nav.snap(x, z) ?? new THREE.Vector2(x, z));
