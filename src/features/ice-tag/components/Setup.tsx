@@ -47,7 +47,7 @@ export function Setup({ mode, save, onStart, onMulti, onBack }: { mode: Mode; sa
   const [map, setMap] = useState<MapId>('plaza');
   const [play, setPlay] = useState<'single' | 'multi'>('single');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
-  const [teamSize, setTeamSize] = useState<TeamSize>(mode === 'police' ? 2 : 3);
+  const [teamSize, setTeamSize] = useState<TeamSize>(3);
   const stars = totalStars(save);
   const info = MODE_INFO[mode];
   const oj = mode === 'ojaemi';
@@ -80,15 +80,13 @@ export function Setup({ mode, save, onStart, onMulti, onBack }: { mode: Mode; sa
 
         {mode === 'police' && (
           <section className="bg-white rounded-3xl p-3 shadow-sm">
-            <div className="flex items-center gap-2 px-1 mb-2"><Swords size={15} className="text-blue-500" /><span className="text-[13px] font-bold text-slate-800">대전 인원</span></div>
-            <div className="grid grid-cols-2 gap-2">
-              {([1, 2] as TeamSize[]).map((n) => <button key={n} onClick={() => setTeamSize(n)} className={`rounded-2xl p-3 text-center press ${teamSize === n ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'}`}><div className="font-extrabold text-[16px]">{n === 1 ? '1 VS 3' : '2 VS 4'}</div><div className={`text-[11px] mt-1 ${teamSize === n ? 'text-white/60' : 'text-slate-400'}`}>{n === 1 ? '총 4명' : '총 6명'}</div></button>)}
-            </div>
-            <div className="text-[13px] font-bold text-slate-800 px-1 mb-1.5">🚓 경찰과 도둑 <span className="text-slate-400 font-medium text-[11px] ml-1">1 VS 3 / 2 VS 4 · 역할 무작위</span></div>
+            <div className="flex items-center gap-2 px-1 mb-2"><Swords size={15} className="text-violet-500" /><span className="text-[13px] font-bold text-slate-800">숨바꼭질 규칙</span></div>
+            <div className="text-[13px] font-bold text-slate-800 px-1 mb-1.5">숨는 팀 5명 · 술래 1명</div>
             <ul className="list-disc pl-5 pr-1 space-y-0.5 text-[12px] leading-5 text-slate-500">
-              <li><b className="text-slate-700">경찰</b>이 닿으면 도둑은 감옥으로! 모두 가두면 경찰 승리</li>
-              <li><b className="text-slate-700">도둑</b>은 감옥에 다가가 잠시 머물면 갇힌 동료를 구출해요</li>
-              <li>보석을 모두 모으면 <b className="text-slate-700">비상 탈출구</b>가 열리고, 탈출하거나 90초를 버티면 도둑 승리</li>
+              <li><b className="text-slate-700">숨기</b>를 누르면 주변의 비슷한 사물로 변신해요</li>
+              <li>변신한 채로 움직일 수 있고, 다시 <b className="text-slate-700">숨기 해제</b>도 가능해요</li>
+              <li>같은 자리에 오래 있으면 사물이 흔들려 술래에게 의심 단서가 생겨요</li>
+              <li>맵이 더 넓고 사물 위치가 매 경기 랜덤하게 달라져요</li>
             </ul>
           </section>
         )}
@@ -117,10 +115,10 @@ export function Setup({ mode, save, onStart, onMulti, onBack }: { mode: Mode; sa
         <section className="bg-white rounded-3xl p-3 shadow-sm">
           <div className="grid grid-cols-2 gap-2">
             {([['single', Gamepad2, '싱글플레이', singleSub], ['multi', Users, '멀티플레이', `코드로 최대 ${total}명`]] as const).map(([k, Icon, t, sub]) => (
-              <button key={k} disabled={k === 'multi' && mode === 'police'} onClick={() => setPlay(k)} className={`rounded-2xl p-3 text-left press transition ${play === k ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'} ${k === 'multi' && mode === 'police' ? 'opacity-40' : ''}`}>
+              <button key={k} disabled={false} onClick={() => setPlay(k)} className={`rounded-2xl p-3 text-left press transition ${play === k ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'} ${k === 'multi' && mode === 'police' ? 'opacity-40' : ''}`}>
                 <Icon size={18} className={play === k ? 'text-sky-300' : 'text-slate-400'} />
                 <div className="font-bold mt-1">{t}</div>
-                <div className={`text-[11px] ${play === k ? 'text-white/60' : 'text-slate-400'}`}>{k === 'multi' && mode === 'police' ? '싱글플레이 전용' : sub}</div>
+                <div className={`text-[11px] ${play === k ? 'text-white/60' : 'text-slate-400'}`}>{sub}</div>
               </button>
             ))}
           </div>
