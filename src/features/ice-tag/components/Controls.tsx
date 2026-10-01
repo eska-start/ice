@@ -172,6 +172,7 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
   const st = hud.stunned || !playing;
   const isTagger = hud.mode === 'icetag' && hud.role === 'tagger';
   const isRunner = hud.mode === 'icetag' && hud.role === 'runner';
+  const isHideRunner = hud.mode === 'police' && hud.role === 'runner';
   const u = (v: number) => v * ui;
 
   // 모바일과 PC 환경에 맞춘 슬롯 & 패널 크기
@@ -194,6 +195,19 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
         )}
         {isRunner && (
           <ActionBtn label="얼음!" icon="❄️" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#7fd0ff,#2378d8)" disabled={st || !hud.canFreeze} cooldown={hud.freezeCd} glow={hud.danger && hud.canFreeze && !hud.lastAlive} onPress={onPrimary} keyHint={hint(H.primary)} />
+        )}
+        {isHideRunner && (
+          <ActionBtn
+            label={hud.hideTransformed ? '변신 해제' : '숨기'}
+            icon={hud.hideTransformed ? '🐾' : '🫥'}
+            size={u(slot.main.size)}
+            style={pos(slot.main)}
+            color="linear-gradient(180deg,#b99cff,#7657d9)"
+            disabled={st || !hud.hideCanTransform}
+            glow={!hud.hideTransformed && hud.hideCanTransform}
+            onPress={onPrimary}
+            keyHint={hint(H.primary)}
+          />
         )}
         {isTagger && (
           <div
