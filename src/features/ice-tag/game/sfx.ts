@@ -2,10 +2,14 @@ export class Sfx {
   ctx: AudioContext | null = null;
   master: GainNode | null = null;
   muted = false;
+  bgmGain: GainNode | null = null;
+  bgmTimer: number | null = null;
+  bgmStep = 0;
 
   init() {
     if (this.ctx) {
       if (this.ctx.state === 'suspended') this.ctx.resume();
+      this.startBgm();
       return;
     }
     try {
@@ -14,14 +18,40 @@ export class Sfx {
       this.master = this.ctx.createGain();
       this.master.gain.value = 0.35;
       this.master.connect(this.ctx.destination);
+      this.startBgm();
     } catch {
       this.ctx = null;
     }
   }
 
+  startBgm() {
+    if (!this.ctx || !this.master || this.muted || this.bgmTimer !== null) return;
+    const ctx = this.ctx;
+    this.bgmGain = ctx.createGain();
+    this.bgmGain.gain.value = 0.045;
+    this.bgmGain.connect(this.master);
+    const notes = [261.63, 329.63, 392, 329.63, 293.66, 349.23, 440, 349.23];
+    this.bgmStep = 0;
+    const tick = () => {
+      if (!this.ctx || !this.bgmGain || this.muted) return;
+      const t = this.ctx.currentTime + 0.02;
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = notes[this.bgmStep++ % notes.length];
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(1, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+      o.connect(g); g.connect(this.bgmGain); o.start(t); o.stop(t + 0.36);
+    };
+    tick();
+    this.bgmTimer = window.setInterval(tick, 360);
+  }
+
   setMuted(m: boolean) {
     this.muted = m;
     if (this.master) this.master.gain.value = m ? 0 : 0.35;
+    if (!m) this.startBgm();
   }
 
   tone(freq: number, dur: number, type: OscillatorType = 'sine', vol = 0.5, slide = 0, delay = 0) {
