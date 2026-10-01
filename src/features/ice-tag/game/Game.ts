@@ -1024,7 +1024,7 @@ export class Game {
           }
         }
       }
-      if (f.jewelProgress >= 0.999) this.exitOpen = true;
+      if (f.jewelProgress >= 0.999 && !this.exitOpen) { this.exitOpen = true; this.refreshExitLabels(true); this.toast('🚨 비상 탈출구 OPEN! 도둑은 탈출할 수 있어요!', '#9dffb0'); }
     }
     // 2) 체포: 경찰이 도둑에게 닿으면 감옥으로
     for (const cop of this.chars) {
@@ -2042,13 +2042,16 @@ export class Game {
       } else {
         const jailSafe = copDist(f.jail.x, f.jail.z) > D.rescueSafe;
         const wantRescue = prisoners > 0 && jailSafe && (c.id % 2 === 1 || !this.exitOpen);
-        if (wantRescue) {
-          // 감옥 구출 범위 안쪽 (내가 오는 방향)으로
+        if (this.exitOpen && c.status === 'alive') {
+          const ex = f.exits[0];
+          if (ex) ai.goal = new THREE.Vector3(ex.x, 0, ex.z);
+        } else if (wantRescue) {
           const a = Math.atan2(c.pos.x - f.jail.x, c.pos.z - f.jail.z);
           ai.goal = new THREE.Vector3(f.jail.x + Math.sin(a) * 2.5, 0, f.jail.z + Math.cos(a) * 2.5);
         } else {
-          // 탈출구 없이 맵을 돌아다니며 경찰을 피한다
-          ai.goal = this.safeGoal(c, cops.filter((o) => o.stun <= 0)) ?? this.fleeGoal(c, new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5), 8);
+          const jewel = f.jewels.filter((j) => j.active).sort((a, b) => Math.hypot(a.x - c.pos.x, a.z - c.pos.z) - Math.hypot(b.x - c.pos.x, b.z - c.pos.z))[0];
+          if (jewel && (!cop || dC > D.fleeDist * 0.9)) ai.goal = new THREE.Vector3(jewel.x, 0, jewel.z);
+          else ai.goal = this.safeGoal(c, cops.filter((o) => o.stun <= 0)) ?? this.fleeGoal(c, new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5), 8);
         }
       }
     }
