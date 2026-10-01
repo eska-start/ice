@@ -10,12 +10,14 @@ import { BOUNDS, pointBlocked, type Collider } from './world';
  * - A* with octile heuristic, no corner cutting, clearance-weighted cost
  * - string-pulled (smoothed) output so the AI walks straight lines between corners
  */
+export const HIDE_BOUNDS = { minX: -28, maxX: 28, minZ: -34, maxZ: 34 };
+
 export class NavGrid {
   readonly cs = 0.5;
   readonly w: number;
   readonly h: number;
   readonly ox = BOUNDS.minX;
-  readonly oz = BOUNDS.minZ;
+  readonly oz: number;
   readonly blocked: Uint8Array;
   /** chebyshev distance (cells) to the nearest blocked cell, capped at 12 */
   readonly clear: Uint8Array;
@@ -31,9 +33,12 @@ export class NavGrid {
   private heapF: Float32Array;
   private heapN = 0;
 
-  constructor(colliders: Collider[], radius: number) {
-    this.w = Math.round((BOUNDS.maxX - BOUNDS.minX) / this.cs);
-    this.h = Math.round((BOUNDS.maxZ - BOUNDS.minZ) / this.cs);
+  constructor(colliders: Collider[], radius: number, expanded = false) {
+    const bounds = expanded ? HIDE_BOUNDS : BOUNDS;
+    this.ox = bounds.minX;
+    this.oz = bounds.minZ;
+    this.w = Math.round((bounds.maxX - bounds.minX) / this.cs);
+    this.h = Math.round((bounds.maxZ - bounds.minZ) / this.cs);
     const n = this.w * this.h;
     this.blocked = new Uint8Array(n);
     this.clear = new Uint8Array(n);
@@ -108,7 +113,7 @@ export class NavGrid {
   cz(j: number) { return this.oz + (j + 0.5) * this.cs; }
 
   isFree(x: number, z: number) {
-    if (x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ) return false;
+    if (x < this.ox || x > this.ox + this.w * this.cs || z < this.oz || z > this.oz + this.h * this.cs) return false;
     return this.blocked[this.cj(z) * this.w + this.ci(x)] === 0;
   }
 
@@ -273,7 +278,7 @@ export class NavGrid {
     for (let n = 0; n < tries; n++) {
       const a = Math.random() * Math.PI * 2, r = rMin + Math.random() * (rMax - rMin);
       const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
-      if (px < BOUNDS.minX + 1 || px > BOUNDS.maxX - 1 || pz < BOUNDS.minZ + 1 || pz > BOUNDS.maxZ - 1) continue;
+      if (px < this.ox + 1 || px > this.ox + this.w * this.cs - 1 || pz < this.oz + 1 || pz > this.oz + this.h * this.cs - 1) continue;
       if (this.isFree(px, pz) && this.clearance(px, pz) >= minClear) return new THREE.Vector2(px, pz);
     }
     return null;
