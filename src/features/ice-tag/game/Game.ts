@@ -1063,6 +1063,21 @@ export class Game {
     }
   }
 
+  hideTagCheck() {
+    const tg = this.tagger;
+    if (!tg || tg.status !== 'alive') return;
+    for (const r of this.runners) {
+      if (r.status !== 'alive' || r.hideProp || r.grace > 0) continue;
+      const d = Math.hypot(r.pos.x - tg.pos.x, r.pos.z - tg.pos.z);
+      if (d < TAG_DIST) {
+        this.eliminate(r, tg);
+        tg.tagAnim = 0.45;
+        tg.facing = Math.atan2(r.pos.x - tg.pos.x, r.pos.z - tg.pos.z);
+      }
+    }
+    if (this.runners.every((r) => r.status === 'out')) this.endRound('tagger', 'all_found');
+  }
+
   aiHideSeeker(c: Char) {
     const ai = c.ai, D = this.diff;
     if (ai.think > 0) { this.moveToGoal(c); return; }
