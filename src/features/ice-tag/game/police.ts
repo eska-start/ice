@@ -72,7 +72,7 @@ function findSpot(colliders: Colliders, cx: number, cz: number, half: number, pa
 export function buildPoliceField(scene: THREE.Scene, world: WorldData): PoliceField {
   const colliders = world.colliders;
   const jp = findSpot(colliders, -11.5, 0.5, 2.4, 0.3, 2.9);
-  const exitSpots = [findSpot(colliders, -11, -17, 1.7, 0.3), findSpot(colliders, 11, 17, 1.7, 0.3)];
+  const exitSpots: { x: number; y: number }[] = [];
   const root = new THREE.Group();
   scene.add(root);
 
