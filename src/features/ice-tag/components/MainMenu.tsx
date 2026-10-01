@@ -489,6 +489,7 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
             <li><b className="text-slate-800">경찰</b>이 도둑에게 닿으면 체포 → <b className="text-slate-800">감옥</b>으로 보내요.</li>
             <li>갇힌 도둑은 다른 도둑이 <b className="text-slate-800">감옥에 접근해 잠시 머물면</b> 모두 구출돼요.</li>
             <li>1 VS 3 또는 2 VS 4로 시작해요. 도둑은 보석을 모아 100%가 되면 비상 탈출구를 열고 탈출하거나 90초를 버티면 승리하고, 경찰은 모든 도둑을 체포하면 승리해요.</li>
+            <li><b className="text-slate-800">Space / J</b>로 경찰은 사이렌 플래시, 도둑은 연막탄을 사용해요. 쿨타임은 12초예요.</li>
           </ul>
         </section>
         <section className="bg-indigo-50 rounded-2xl p-4">
