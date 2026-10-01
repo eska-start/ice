@@ -1909,10 +1909,8 @@ export class Game {
         ai.goal = new THREE.Vector3(jx + dir.x * (RESCUE_R + 0.6), 0, jz + dir.z * (RESCUE_R + 0.6));
         chasing = false;
       } else if (d > 14) {
-        // 멀리 있는 도둑은 그쪽에서 가장 가까운 탈출구를 먼저 막는다
-        let ex = f.exits[0], ed = Infinity;
-        for (const x of f.exits) { const dd = Math.hypot(t.pos.x - x.x, t.pos.z - x.z); if (dd < ed) { ed = dd; ex = x; } }
-        ai.goal = new THREE.Vector3(ex.x, 0, ex.z);
+        // 멀리 있는 도둑도 탈출구가 아닌 도둑의 현재 위치를 기준으로 추격한다
+        ai.goal = new THREE.Vector3(t.pos.x, 0, t.pos.z);
         chasing = false;
       } else {
         // 경찰은 도둑의 움직임을 절반만 예측한다 (완벽한 요격이면 도둑이 버틸 수 없다)
