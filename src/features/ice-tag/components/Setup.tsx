@@ -115,10 +115,10 @@ export function Setup({ mode, save, onStart, onMulti, onBack }: { mode: Mode; sa
         <section className="bg-white rounded-3xl p-3 shadow-sm">
           <div className="grid grid-cols-2 gap-2">
             {([['single', Gamepad2, '싱글플레이', singleSub], ['multi', Users, '멀티플레이', `코드로 최대 ${total}명`]] as const).map(([k, Icon, t, sub]) => (
-              <button key={k} disabled={false} onClick={() => setPlay(k)} className={`rounded-2xl p-3 text-left press transition ${play === k ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'} ${k === 'multi' && mode === 'police' ? 'opacity-40' : ''}`}>
+              <button key={k} disabled={k === 'multi' && mode === 'police'} onClick={() => setPlay(k)} className={`rounded-2xl p-3 text-left press transition ${play === k ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'} ${k === 'multi' && mode === 'police' ? 'opacity-40' : ''}`}>
                 <Icon size={18} className={play === k ? 'text-sky-300' : 'text-slate-400'} />
                 <div className="font-bold mt-1">{t}</div>
-                <div className={`text-[11px] ${play === k ? 'text-white/60' : 'text-slate-400'}`}>{sub}</div>
+                <div className={`text-[11px] ${play === k ? 'text-white/60' : 'text-slate-400'}`}>{k === 'multi' && mode === 'police' ? '싱글플레이 테스트' : sub}</div>
               </button>
             ))}
           </div>
