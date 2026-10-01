@@ -35,6 +35,9 @@ const TAG_DIST = 1.15;
 const THAW_DIST = 1.18;
 const FREEZE_CD = 1.2;
 const MOTO_TIME = 3;
+const HIDE_TIME = 120;
+const HIDE_STILL_HINT = 6;
+const HIDE_MOVE_SPEED = 3.9;
 const ITEMS: ItemType[] = ['moto', 'ufo', 'banana', 'missile', 'jelly'];
 const ITEM_NAMES: Record<ItemType, string> = { moto: '🏍️ 오토바이', ufo: '🛸 UFO', banana: '🍌 바나나', missile: '🚀 미사일', jelly: '🟢 젤리슬라임' };
 
@@ -65,6 +68,13 @@ interface AIState {
 }
 interface RoundStats { thaws: number; items: number; out: boolean }
 
+interface HideProp {
+  kind: 'pot' | 'crate' | 'rock' | 'tree';
+  mesh: THREE.Group;
+  x: number;
+  z: number;
+}
+
 interface Char {
   id: number; name: string; team: Team; role: Role; animal: PlayerStat['animal']; isPlayer: boolean; m: CharModel;
   pos: THREE.Vector3; vel: THREE.Vector3; facing: number; move: THREE.Vector3;
@@ -80,6 +90,10 @@ interface Char {
   remote: boolean; netPos: THREE.Vector3; netFacing: number;
   /** host: a fresh position report from this guest exists for the current round */
   hasNet: boolean;
+  hideProp: HideProp | null;
+  hideT: number;
+  hideStillT: number;
+  hideMission: number;
 }
 
 interface Projectile { mesh: THREE.Object3D; pos: THREE.Vector3; vel: THREE.Vector3; owner: Char; age: number; alive: boolean; nearC: Char | null; nearD: number; hit: boolean }
@@ -132,6 +146,9 @@ export class Game {
   policeStarts: { cops: THREE.Vector2[]; robbers: THREE.Vector2[] } = { cops: [], robbers: [] };
   policeT = 0; rescueT = 0; exitOpen = false; rescuer: Char | null = null; policeSkillCd = 0; policeFlashT = 0;
   policeLabels: THREE.Sprite[] = []; exitLabels: THREE.Sprite[] = [];
+  /** 숨바꼭질 전용 랜덤 사물과 변신 상태 */
+  hideProps: HideProp[] = [];
+  hideMissionTotal = 0;
   /** players per team (오재미 1 / 2 / 3; 얼음땡 keeps 3 for layout purposes) */
   teamSize: TeamSize = 3;
   /** field 오재미 cap: 14 for 3:3, ~11 for 2:2, ~8 for 1:1 */
@@ -231,10 +248,10 @@ export class Game {
     }
 
     this.world = buildWorld(this.scene, cfg.map);
-    // 경찰과 도둑: 감옥 창살 충돌체를 길찾기 격자(NavGrid)보다 먼저 추가한다
-    if (this.mode === 'police') this.police = buildPoliceField(this.scene, this.world);
+    // 숨바꼭질만 기존 맵 바깥의 넓은 영역과 랜덤 사물을 추가한다. 다른 모드는 기존 맵을 그대로 사용한다.
+    if (this.mode === 'police') this.initHideMap();
     // walkability grid for AI path finding (obstacles inflated by body radius + margin)
-    this.nav = new NavGrid(this.world.colliders, CHAR_R + 0.1);
+    this.nav = new NavGrid(this.world.colliders, CHAR_R + 0.1, this.mode === 'police');
     if (theme.night) {
       for (const lp of this.world.lampPositions.slice(0, 4)) {
         const pl = new THREE.PointLight(0xffc27a, 14, 15, 2);
@@ -262,6 +279,7 @@ export class Game {
         roundWon: false, finalWon: false, walkPhase: Math.random() * 6, spawnTimer: rand(0.5, 1.5),
         st: emptyStats(), rs: { thaws: 0, items: 0, out: false }, label: null,
         remote: cfg.net === 'host' && s.human && i !== cfg.playerIndex, netPos: new THREE.Vector3(), netFacing: 0, hasNet: false,
+        hideProp: null, hideT: 0, hideStillT: 0, hideMission: 0,
         ai: { think: Math.random() * 0.3, goal: null, target: null, throwCd: rand(0.6, 1.4), strafe: Math.random() < 0.5 ? 1 : -1, seen: new WeakSet(), itemCd: 0, dodgeT: 0, dodgeDir: new THREE.Vector3(), steerSide: 1, fleeDir: new THREE.Vector3(1, 0, 0), rescue: null, panic: rand(0.85, 1.25), hesitate: 0, wanderT: 0, alarm: 0,
           path: [], pathGoal: new THREE.Vector3(1e9, 0, 1e9), pathT: 0, lastPos: new THREE.Vector3(), stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), stuckCount: 0 },
       };
