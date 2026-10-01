@@ -2019,19 +2019,9 @@ export class Game {
           // 감옥 구출 범위 안쪽 (내가 오는 방향)으로
           const a = Math.atan2(c.pos.x - f.jail.x, c.pos.z - f.jail.z);
           ai.goal = new THREE.Vector3(f.jail.x + Math.sin(a) * 2.5, 0, f.jail.z + Math.cos(a) * 2.5);
-        } else if (this.exitOpen) {
-          // 경찰이 멀고 가까운 탈출구를 고른다 (도둑마다 취향이 달라 한 곳에 몰리지 않는다)
-          let ex = f.exits[0], bestScore = -Infinity;
-          f.exits.forEach((x, i) => {
-            const s = Math.min(copDist(x.x, x.z), 14) * 0.8 - Math.hypot(c.pos.x - x.x, c.pos.z - x.z) * 0.55 + ((c.id + i) % 2 ? 1.5 : 0);
-            if (s > bestScore) { bestScore = s; ex = x; }
-          });
-          ai.goal = new THREE.Vector3(ex.x, 0, ex.z);
         } else {
-          // 탈출구가 열리기 전: 가장 가까운 탈출구로 먼저 이동해 대기 (열리면 바로 탈출)
-          let ex = f.exits[0], ed = Infinity;
-          for (const x of f.exits) { const dd = Math.hypot(c.pos.x - x.x, c.pos.z - x.z); if (dd < ed) { ed = dd; ex = x; } }
-          ai.goal = new THREE.Vector3(ex.x, 0, ex.z);
+          // 탈출구 없이 맵을 돌아다니며 경찰을 피한다
+          ai.goal = this.safeGoal(c, cops.filter((o) => o.stun <= 0)) ?? this.fleeGoal(c, new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5), 8);
         }
       }
     }
