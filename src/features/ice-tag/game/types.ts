@@ -50,7 +50,7 @@ export const ALL_MAPS: MapId[] = ['plaza', 'beach', 'snow', 'night'];
 export const MODE_INFO: Record<Mode, { name: string; sub: string; desc: string; color: string }> = {
   icetag: { name: '얼음땡', sub: '1 VS 5', desc: '술래에게서 도망치고, 위험하면 얼음! 친구가 땡으로 구해줘요', color: '#3b9dff' },
   ojaemi: { name: '오재미', sub: '1:1 · 2:2 · 3:3', desc: '오재미를 주워 던지고 피하는 대결! 1대1 · 2대2 · 3대3', color: '#ff7a3b' },
-  police: { name: '경찰과 도둑', sub: '1 VS 3 · 2 VS 4', desc: '보석을 모아 탈출구를 열거나 제한시간을 버티는 비대칭 추격전', color: '#3f66d8' },
+  police: { name: '숨바꼭질', sub: '1 VS 5', desc: '숨기 버튼으로 주변 사물로 변신해 술래를 피해 살아남는 프롭 헌트', color: '#8b7cff' },
 };
 
 export interface StageDef {
@@ -79,7 +79,7 @@ export const TEAM_SIZE_INFO: Record<TeamSize, { label: string; short: string; de
   3: { label: '3 VS 3', short: '3:3', desc: '북적북적 팀 대결' },
 };
 /** total players in a match */
-export const matchSize = (mode: Mode, teamSize: TeamSize = 3) => mode === 'ojaemi' ? teamSize * 2 : mode === 'police' ? (teamSize <= 1 ? 4 : 6) : 6;
+export const matchSize = (mode: Mode, teamSize: TeamSize = 3) => mode === 'ojaemi' ? teamSize * 2 : 6;
 
 export type CostumeSlot = 'top' | 'bottom' | 'hat' | 'glasses';
 /** equipped costume ids per slot (null / undefined = none) */
