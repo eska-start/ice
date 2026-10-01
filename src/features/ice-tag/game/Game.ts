@@ -694,7 +694,7 @@ export class Game {
   // ------------------------------------------------------------ player input
   canAct(c: Char) { return this.phase === 'playing' && c.stun <= 0 && c.status === 'alive' && !this.copHeld(c); }
   /** 경찰과 도둑: 시작 직후 경찰은 잠시 출동 대기 (이동 · 대시 · 체포 불가) */
-  copHeld(c: Char) { return this.mode === 'police' && c.role === 'tagger' && this.policeT < COP_HOLD; }
+  copHeld(c: Char) { return false; }
   playerMoveVec() {
     let x = this.joy.x, y = this.joy.y;
     const k = this.keys;
@@ -760,8 +760,10 @@ export class Game {
   // ---- actions usable for any character (local player or remote human on the host)
   actPrimary(c: Char) {
     if (this.mode === 'police') {
-      if (!this.canAct(c) || this.policeSkillCd > 0) return;
-      if (c.role === 'tagger') {
+      if (c.role === 'runner') { this.toggleHide(c); return; }
+      return;
+    }
+    if (this.mode === 'ojaemi') {
         this.policeSkillCd = 12; this.policeFlashT = 2;
         this.fx.emit('spark', tmpV.set(c.pos.x, 1.4, c.pos.z), 28, 7, 0.8, 4, 1.4);
         this.toastFor(c, '🚨 사이렌 플래시! 2초간 도둑 위치가 보여요!', '#9dffb0');
@@ -772,7 +774,6 @@ export class Game {
       }
       return;
     }
-    if (this.mode === 'ojaemi') this.actThrow(c);
     else if (c.role === 'runner') {
       if (!this.canAct(c)) return;
       if (c.freezeCd > 0) { this.toastFor(c, '❄️ 얼음 준비 중...', '#c8d8ff'); return; }
@@ -1784,7 +1785,7 @@ export class Game {
       ai.lastPos.copy(c.pos);
       return;
     }
-    if (this.mode === 'police') { if (c.role === 'tagger') this.aiCop(c); else this.aiRobber(c); }
+    if (this.mode === 'police') { if (c.role === 'tagger') this.aiHideSeeker(c); else this.aiHideRunner(c); }
     else if (this.mode === 'ojaemi') this.aiOjaemi(c);
     else if (c.role === 'tagger') this.aiTagger(c);
     else this.aiRunner(c);
@@ -2401,8 +2402,8 @@ export class Game {
       c.vel.copy(c.dashDir).multiplyScalar(DASH_SPEED);
       if (Math.random() < 0.6) this.fx.emit(this.theme.snowy ? 'snow' : 'spark', tmpV2.set(c.pos.x, 0.15, c.pos.z), 1, 1, 0.3, 2, 0.7);
     } else {
-      let sp = this.chaseMode && c.role === 'tagger' ? TAGGER_SPEED : this.mode === 'police' && c.role === 'runner' ? ROBBER_SPEED : WALK_SPEED;
-      if (this.mode === 'police' && this.time <= 30 && c.role === 'tagger') sp *= 1.15;
+      let sp = this.chaseMode && c.role === 'tagger' ? TAGGER_SPEED : this.mode === 'police' && c.role === 'runner' ? HIDE_MOVE_SPEED : WALK_SPEED;
+      if (this.mode === 'police' && this.time <= 30 && c.role === 'tagger') sp *= 1.1;
       if (c.motoT > 0) sp *= 1.8;
       if (c.jellyT > 0) sp *= 0.45;
       if (c.throwT >= 0) sp *= 0.7;
@@ -2779,7 +2780,7 @@ export class Game {
     for (const c of this.chars) this.updateChar(c, dt);
     this.separateChars();
     if (this.mode === 'icetag' && this.phase === 'playing') { this.tagCheck(); this.autoThawCheck(); }
-    if (this.mode === 'police' && this.phase === 'playing') this.updatePolice(dt);
+    if (this.mode === 'police' && this.phase === 'playing') { this.updateHide(dt); this.hideTagCheck(); if (this.time <= 0) this.endRound('runner', 'timeout'); }
     if (this.mode === 'ojaemi') { this.updateProjectiles(dt); this.updatePickups(dt); }
     this.updateItems(dt);
     if (this.netRole === 'host') {
@@ -2795,7 +2796,7 @@ export class Game {
     TOON_TIME.value = this.elapsed;
     const p = this.player;
     for (const c of this.chars) this.animate(c, dt);
-    if (this.police) this.updatePoliceVisuals();
+    // 숨바꼭질 변신 사물은 animate()와 별도로 장면에 남아 있다.
     this.fx.update(dt);
 
     for (const a of this.world.animated) {
@@ -2869,18 +2870,6 @@ export class Game {
         this.reticle.scale.set(sc, sc, sc);
       }
     } else this.reticle.visible = false;
-
-    // 경찰과 도둑: 정면 부채꼴 시야 + 벽 뒤 은신 효과(근거리에서는 보인다)
-    if (this.mode === 'police' && !this.demo) {
-      const p = this.player;
-      for (const e of this.chars) {
-        if (e === p || e.status !== 'alive') { if (e !== p && e.status === 'frozen') e.m.root.visible = true; continue; }
-        const dx = e.pos.x - p.pos.x, dz = e.pos.z - p.pos.z, d = Math.hypot(dx, dz);
-        const facingX = Math.sin(p.facing), facingZ = Math.cos(p.facing);
-        const front = d < 3 || this.policeFlashT > 0 || (dx * facingX + dz * facingZ) / Math.max(d, 0.001) > 0.45;
-        e.m.root.visible = d < 2.5 || (front && lineOfSight(this.world.colliders, p.pos.x, p.pos.z, e.pos.x, e.pos.z));
-      }
-    }
 
     this.updateCamera(dt);
 
