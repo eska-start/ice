@@ -331,7 +331,7 @@ export class Game {
       this.scene.add(this.snowPts);
     }
 
-    this.spawnItemBoxes(4);
+    if (this.mode !== 'police') this.spawnItemBoxes(4);
     this.taggerOrder = this.makeTaggerOrder();
     this.resetRound();
 
