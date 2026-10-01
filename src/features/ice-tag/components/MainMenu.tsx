@@ -483,12 +483,12 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
           </ul>
         </section>
         <section className="bg-blue-50 rounded-2xl p-4">
-          <div className="text-blue-900 font-bold text-[15px] mb-1.5">경찰과 도둑 <span className="text-blue-500 font-semibold text-xs ml-1">2 VS 4 · 2분 · 싱글 전용</span></div>
+          <div className="text-blue-900 font-bold text-[15px] mb-1.5">경찰과 도둑 <span className="text-blue-500 font-semibold text-xs ml-1">1 VS 3 · 2 VS 4 · 90초</span></div>
           <ul className="list-disc pl-4 space-y-1">
             <li>시작할 때 <b className="text-slate-800">경찰 / 도둑 역할이 무작위</b>로 정해지고, 나머지는 AI가 맡아요.</li>
             <li><b className="text-slate-800">경찰</b>이 도둑에게 닿으면 체포 → <b className="text-slate-800">감옥</b>으로 보내요.</li>
             <li>갇힌 도둑은 다른 도둑이 <b className="text-slate-800">감옥에 접근해 잠시 머물면</b> 모두 구출돼요.</li>
-            <li>경찰 2명과 도둑 4명으로 시작하며, 경찰은 도둑을 모두 체포하고 도둑은 2분을 버티면 승리해요. 탈출구는 없어요.</li>
+            <li>1 VS 3 또는 2 VS 4로 시작해요. 도둑은 보석을 모아 100%가 되면 비상 탈출구를 열고 탈출하거나 90초를 버티면 승리하고, 경찰은 모든 도둑을 체포하면 승리해요.</li>
           </ul>
         </section>
         <section className="bg-indigo-50 rounded-2xl p-4">
