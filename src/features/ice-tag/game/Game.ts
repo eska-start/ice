@@ -2215,6 +2215,7 @@ export class Game {
       if (Math.random() < 0.6) this.fx.emit(this.theme.snowy ? 'snow' : 'spark', tmpV2.set(c.pos.x, 0.15, c.pos.z), 1, 1, 0.3, 2, 0.7);
     } else {
       let sp = this.chaseMode && c.role === 'tagger' ? TAGGER_SPEED : this.mode === 'police' && c.role === 'runner' ? ROBBER_SPEED : WALK_SPEED;
+      if (this.mode === 'police' && this.time <= 30 && c.role === 'tagger') sp *= 1.15;
       if (c.motoT > 0) sp *= 1.8;
       if (c.jellyT > 0) sp *= 0.45;
       if (c.throwT >= 0) sp *= 0.7;
@@ -2681,6 +2682,18 @@ export class Game {
         this.reticle.scale.set(sc, sc, sc);
       }
     } else this.reticle.visible = false;
+
+    // 경찰과 도둑: 정면 부채꼴 시야 + 벽 뒤 은신 효과(근거리에서는 보인다)
+    if (this.mode === 'police' && !this.demo) {
+      const p = this.player;
+      for (const e of this.chars) {
+        if (e === p || e.status !== 'alive') { if (e !== p && e.status === 'frozen') e.m.root.visible = true; continue; }
+        const dx = e.pos.x - p.pos.x, dz = e.pos.z - p.pos.z, d = Math.hypot(dx, dz);
+        const facingX = Math.sin(p.facing), facingZ = Math.cos(p.facing);
+        const front = d < 3 || (dx * facingX + dz * facingZ) / Math.max(d, 0.001) > 0.45;
+        e.m.root.visible = d < 2.5 || (front && lineOfSight(this.world.colliders, p.pos.x, p.pos.z, e.pos.x, e.pos.z));
+      }
+    }
 
     this.updateCamera(dt);
 
