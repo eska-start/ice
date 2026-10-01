@@ -224,7 +224,7 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
             style={{ ...pos(slot.main), width: u(slot.main.size), height: u(slot.main.size) }}
           >
             <span className="leading-none" style={{ fontSize: u(28) }}>{hud.role === 'tagger' ? '🚓' : '🏃'}</span>
-            <span className="font-black text-white txt-outline-sm leading-tight mt-0.5" style={{ fontSize: Math.max(10, u(11)) }}>{hud.role === 'tagger' ? <>닿으면<br />체포</> : <>탈출구로<br />도망!</>}</span>
+            <span className="font-black text-white txt-outline-sm leading-tight mt-0.5" style={{ fontSize: Math.max(10, u(11)) }}>{hud.role === 'tagger' ? <>닿으면<br />잡기</> : <>술래를<br />피하세요</>}</span>
           </div>
         )}
         {/* 땡은 버튼 없이 닿으면 자동 구조. 대시 & 아이템은 모든 모드 / 역할에서 일관된 위치 */}
