@@ -7,8 +7,8 @@ import { std } from './textures';
  * 기존 맵(buildWorld)은 수정하지 않고, 이 모드일 때만 장면에 덧붙인다.
  */
 export const POLICE_TIME = 120;
-/** 경기 시작 후 탈출구가 열리기까지의 시간(초) */
-export const EXIT_OPEN_AT = 15;
+/** 보석 게이지가 가득 차면 비상 탈출구가 열린다 */
+export const JEWEL_COUNT = 5;
 /** 경기 시작 직후 경찰이 기지에서 대기하는 시간(초) — 도둑이 먼저 달려 나간다 */
 export const COP_HOLD = 4;
 /** 다른 도둑이 감옥 근처에 2초간 머물러야 동료를 구출할 수 있다 */
@@ -30,6 +30,8 @@ const WALL = JAIL_HALF + 0.12;
 export interface PoliceField {
   jail: { x: number; z: number; slots: THREE.Vector2[] };
   exits: { x: number; z: number }[];
+  jewels: { x: number; z: number; active: boolean }[];
+  jewelProgress: number;
   reset(): void;
   update(t: number, open: boolean, rescue: number, prisoners: number): void;
 }
@@ -72,7 +74,7 @@ function findSpot(colliders: Colliders, cx: number, cz: number, half: number, pa
 export function buildPoliceField(scene: THREE.Scene, world: WorldData): PoliceField {
   const colliders = world.colliders;
   const jp = findSpot(colliders, -11.5, 0.5, 2.4, 0.3, 2.9);
-  const exitSpots: { x: number; y: number }[] = [];
+  const exitSpots = [{ x: 11.5, y: 0 }];
   const root = new THREE.Group();
   scene.add(root);
 
@@ -143,7 +145,30 @@ export function buildPoliceField(scene: THREE.Scene, world: WorldData): PoliceFi
   disc.visible = false;
   root.add(disc);
 
-  // ------------------------------------------------------------ 탈출구 (문 + 바닥 패드 + 빛기둥)
+  // ------------------------------------------------------------ 보석 + 탈출구
+  const jewelRoot = new THREE.Group();
+  root.add(jewelRoot);
+  const jewelMat = new THREE.MeshStandardMaterial({ color: 0x66d9ff, emissive: 0x164f8a, emissiveIntensity: 1.2, metalness: 0.45, roughness: 0.22 });
+  const jewelSpots = [
+    findSpot(colliders, -7, -8, 0.5, 0.2).clone(),
+    findSpot(colliders, 7, 8, 0.5, 0.2).clone(),
+    findSpot(colliders, 9, -7, 0.5, 0.2).clone(),
+    findSpot(colliders, -9, 7, 0.5, 0.2).clone(),
+    findSpot(colliders, 0, 10, 0.5, 0.2).clone(),
+  ];
+  const jewels = jewelSpots.map((p) => {
+    const g = new THREE.Group();
+    g.position.set(p.x, 0.7, p.y);
+    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), jewelMat);
+    mesh.castShadow = true;
+    g.add(mesh);
+    const glow = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.56, 24), new THREE.MeshBasicMaterial({ color: 0x7ee7ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = -0.6; g.add(glow);
+    jewelRoot.add(g);
+    return { x: p.x, z: p.y, active: true, mesh: g };
+  });
+  const jewelData = jewels.map(({ x, z, active }) => ({ x, z, active }));
+
   const gateMat = std(0xd94b4b, { emissive: 0xd94b4b, emissiveIntensity: 0.7, unique: true });
   const padMat = new THREE.MeshBasicMaterial({ color: 0xff6b6b, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false });
   const edgeMat = new THREE.MeshBasicMaterial({ color: 0xff6b6b, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false });
@@ -202,13 +227,18 @@ export function buildPoliceField(scene: THREE.Scene, world: WorldData): PoliceFi
       slots: [new THREE.Vector2(-0.75, -0.5), new THREE.Vector2(0.75, -0.5), new THREE.Vector2(0, 0.72)],
     },
     exits: exitSpots.map((p) => ({ x: p.x, z: p.y })),
+    jewels: jewelData,
+    jewelProgress: 0,
     reset() {
       applyOpen(false);
       disc.visible = false;
+      this.jewelProgress = 0;
+      jewels.forEach((j) => { j.active = true; j.mesh.visible = true; });
     },
     update(t, open, rescue, prisoners) {
       if (open !== lastOpen) applyOpen(open);
       const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+      jewels.forEach((j, i) => { if (j.active) { j.mesh.rotation.y += 0.02; j.mesh.position.y = 0.7 + Math.sin(t * 3 + i) * 0.12; } });
       lightMat.opacity = open ? 0.14 + 0.1 * pulse : 0;
       edgeMat.opacity = open ? 0.7 + 0.3 * pulse : 0.45;
       padMat.opacity = open ? 0.26 + 0.12 * pulse : 0.14;
