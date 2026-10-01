@@ -34,7 +34,7 @@ export const KEY_HINT: Record<GameAction, string> = {
 };
 
 export const MOUSE_HINT: Record<GameAction, string> = {
-  // In mouse mode left click is reserved for click-to-move; Space/J still fires the main action.
+  // Mouse mode: Ojaemi uses left click to throw; other modes keep Space/J for the main action.
   primary: 'Space / J',
   dash: '우클릭 / Shift',
   item: 'E / 휠클릭',
@@ -47,14 +47,14 @@ export interface KeyRow { keys: string; action: string }
 export function pcRowsFor(mode: Mode, role: Role, status: PStatus, control: PcControl = 'keyboard'): KeyRow[] {
   const mouse = control === 'mouse';
   const rows: KeyRow[] = mouse
-    ? [{ keys: '마우스 포인터', action: '바라보기 · 조준' }, { keys: '좌클릭', action: '클릭한 곳으로 이동' }]
+    ? [{ keys: '마우스 포인터', action: '바라보기 · 조준' }, ...(mode === 'ojaemi' ? [{ keys: '좌클릭', action: '던지기' }] : [{ keys: '좌클릭', action: '클릭한 곳으로 이동' }])]
     : [{ keys: 'WASD / 방향키', action: '이동' }];
 
   if (mode === 'icetag' && status === 'out') {
     rows.push({ keys: KEY_HINT.spectate, action: '관전 전환' });
   } else {
     if (mode === 'police' && role === 'runner') rows.push({ keys: KEY_HINT.primary, action: '숨기 / 변신 해제' });
-    else if (mode === 'ojaemi') rows.push({ keys: mouse ? 'Space / J' : KEY_HINT.primary, action: '던지기' });
+    else if (mode === 'ojaemi' && !mouse) rows.push({ keys: KEY_HINT.primary, action: '던지기' });
     else if (mode === 'icetag' && role === 'runner') rows.push({ keys: KEY_HINT.primary, action: '얼음!' });
     if (mouse) rows.push({ keys: '우클릭 / Shift·L', action: '커서 방향 대시' });
     rows.push({ keys: mouse ? '휠클릭 / E' : KEY_HINT.item, action: '아이템' });
