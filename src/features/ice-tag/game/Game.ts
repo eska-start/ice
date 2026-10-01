@@ -141,7 +141,7 @@ export class Game {
   cfg: GameConfig; cb: GameCallbacks; sfx: Sfx; mode: Mode; demo: boolean; diff: Diff; totalRounds: number; stage: StageDef | null; theme: ThemeDef;
   container: HTMLElement; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; world: WorldData; fx: Effects; ro: ResizeObserver;
   nav!: NavGrid;
-  /** 경찰과 도둑: 감옥 · 탈출구 구조물과 규칙 상태 (다른 모드에서는 사용하지 않음) */
+  /** 숨바꼭질: 감옥 · 탈출구 구조물과 규칙 상태 (다른 모드에서는 사용하지 않음) */
   police: PoliceField | null = null;
   policeStarts: { cops: THREE.Vector2[]; robbers: THREE.Vector2[] } = { cops: [], robbers: [] };
   policeT = 0; rescueT = 0; exitOpen = false; rescuer: Char | null = null; policeSkillCd = 0; policeFlashT = 0;
@@ -474,7 +474,7 @@ export class Game {
   get tagger(): Char { return this.chars.find((c) => c.role === 'tagger') ?? this.chars[0]; }
   /**
    * 술래가 더 빠르고 대시 재사용이 짧은 모드 (얼음땡 전용 — 원래 동작 그대로).
-   * 경찰과 도둑은 도망자에게 '얼음' 같은 방어 수단이 없으므로 경찰/도둑의 이동속도와 대시 성능을 같게 둔다.
+   * 숨바꼭질은 도망자에게 '얼음' 같은 방어 수단이 없으므로 술래/숨는 사람의 이동속도와 대시 성능을 같게 둔다.
    */
   get chaseMode() { return this.mode === 'icetag'; }
   get runners(): Char[] { return this.chars.filter((c) => c.role === 'runner'); }
@@ -560,7 +560,7 @@ export class Game {
       c.ai.goal = null; c.ai.target = null; c.ai.rescue = null; c.ai.dodgeT = 0; c.ai.throwCd = rand(0.4, 1.4); c.ai.wanderT = 0;
       c.ai.path.length = 0; c.ai.pathT = 0; c.ai.stuckT = 0; c.ai.stuckCount = 0; c.ai.unstickT = 0; c.ai.lastPos.copy(c.pos);
       this.setLabel(c, this.mode === 'icetag' && c.role === 'tagger' ? '술래' : null, '#ff6b6b', 1.0);
-      // 숨바꼭질에서는 역할 머리 위에 경찰/도둑 라벨을 표시하지 않음
+      // 숨바꼭질에서는 역할 머리 위에 술래/숨는 사람 라벨을 표시하지 않음
     }
     for (const it of this.items) { it.active = true; it.respawn = 0; it.mesh.visible = true; }
     if (this.mode === 'ojaemi') {
@@ -694,7 +694,7 @@ export class Game {
 
   // ------------------------------------------------------------ player input
   canAct(c: Char) { return this.phase === 'playing' && c.stun <= 0 && c.status === 'alive' && !this.copHeld(c); }
-  /** 경찰과 도둑: 시작 직후 경찰은 잠시 출동 대기 (이동 · 대시 · 체포 불가) */
+  /** 숨바꼭질: 시작 직후 술래은 잠시 출동 대기 (이동 · 대시 · 체포 불가) */
   copHeld(c: Char) { return false; }
   playerMoveVec() {
     let x = this.joy.x, y = this.joy.y;
@@ -779,7 +779,7 @@ export class Game {
     for (const cop of this.chars) if (cop !== c && cop.role === 'tagger' && cop.status === 'alive' && cop.pos.distanceTo(c.pos) < 4.5) this.applyStun(cop, 'bump', 1.0);
     const smoke = () => { if (!p.parent) return; const age = this.elapsed - born; p.scale.setScalar(0.8 + age * 1.2); (p.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.18 * (1 - age / 2)); if (age >= 2) { this.scene.remove(p); return; } requestAnimationFrame(smoke); };
     smoke();
-    this.toastFor(c, '💨 연막탄! 경찰 시야를 흐립니다!', '#d5dbe8');
+    this.toastFor(c, '💨 연막탄! 술래 시야를 흐립니다!', '#d5dbe8');
   }
 
   actDash(c: Char, mv: THREE.Vector3) {
@@ -935,8 +935,8 @@ export class Game {
     }
   }
 
-  // ------------------------------------------------------------ 경찰과 도둑
-  /** 경찰(role 'tagger' · 파란팀) / 도둑(role 'runner' · 빨간팀)을 무작위로 나누고 시작 위치를 돌려준다. */
+  // ------------------------------------------------------------ 숨바꼭질
+  /** 술래(role 'tagger' · 파란팀) / 숨는 사람(role 'runner' · 빨간팀)을 무작위로 나누고 시작 위치를 돌려준다. */
   assignPoliceRoles(): Map<number, THREE.Vector2> {
     const copN = Math.max(1, Math.floor(this.chars.length / 3));
     const cops = new Set(shuffle(this.chars.map((c) => c.id)).slice(0, copN));
@@ -1165,13 +1165,13 @@ export class Game {
     this.police?.reset();
   }
 
-  /** 살아있는(도망 중인) 도둑 p 근처에 활동 가능한 경찰이 있는가 */
+  /** 살아있는(도망 중인) 숨는 사람 p 근처에 활동 가능한 술래이 있는가 */
   copNear(p: Char, d: number) {
     if (p.role !== 'runner' || p.status !== 'alive') return false;
     return this.chars.some((c) => c.role === 'tagger' && c.status === 'alive' && c.stun <= 0 && c.pos.distanceTo(p.pos) < d);
   }
 
-  /** 경찰이 도둑에게 닿으면 체포 → 감옥 안으로 이동 (status 'frozen' = 수감 중) */
+  /** 술래이 숨는 사람에게 닿으면 체포 → 감옥 안으로 이동 (status 'frozen' = 수감 중) */
   arrest(r: Char, cop: Char) {
     const f = this.police!;
     const heard = this.near(r);
@@ -1194,12 +1194,12 @@ export class Game {
     this.setLabel(r, '🔒 감옥', '#ffd27a', 0.85);
     this.fx.ring(tmpV.set(r.pos.x, 0.1, r.pos.z), 0xffd27a, 4, 0.4);
     if (heard) { this.sfx.tag(); this.sfx.out(); }
-    if (r.isPlayer) { this.toast('🚔 체포됐다! 동료 도둑이 구출해주길 기다려요', '#ffd27a'); this.shake = 0.5; }
+    if (r.isPlayer) { this.toast('🚔 체포됐다! 동료 숨는 사람이 구출해주길 기다려요', '#ffd27a'); this.shake = 0.5; }
     else if (cop.isPlayer) this.toast(`🚓 ${r.name} 체포! 감옥으로!`, '#ffe14a');
     else this.toast(`${cop.name} → ${r.name} 체포!`, '#ffe9a8');
   }
 
-  /** 도둑이 감옥 근처에 머물러 구출 게이지가 차면 갇힌 도둑이 모두 풀려난다 */
+  /** 숨는 사람이 감옥 근처에 머물러 구출 게이지가 차면 갇힌 숨는 사람이 모두 풀려난다 */
   releasePrisoners(by: Char, list: Char[]) {
     const f = this.police!;
     const base = Math.atan2(by.pos.x - f.jail.x, by.pos.z - f.jail.z);
@@ -1212,7 +1212,7 @@ export class Game {
       r.status = 'alive'; r.iceT = 0; r.thawT = 0.5; r.grace = 1.8; r.freezeCd = 0; r.motoT = 1.5;
       r.pos.set(px, 0, pz); r.vel.set(0, 0, 0); r.facing = a;
       r.ai.think = 0; r.ai.goal = null; r.ai.path.length = 0;
-      this.setLabel(r, '🏃 도둑', '#ffa0a0', 0.8);
+      this.setLabel(r, '🏃 숨는 사람', '#ffa0a0', 0.8);
       this.fx.emit('star', tmpV.set(px, 1.6, pz), 10, 4, 0.8, 4, 1.2);
       this.fx.emit('spark', tmpV.set(px, 1.2, pz), 14, 4, 0.6, 2, 1.1);
       this.fx.ring(tmpV.set(px, 0.1, pz), 0x5dff8a, 5, 0.5);
@@ -1225,10 +1225,10 @@ export class Game {
     if (this.near(by)) this.sfx.thaw();
   }
 
-  /** 경찰과 도둑 한 프레임: 보석 수집 → 탈출구 개방 → 체포 → 구출 → 탈출 → 승패 판정 */
+  /** 숨바꼭질 한 프레임: 보석 수집 → 탈출구 개방 → 체포 → 구출 → 탈출 → 승패 판정 */
   updatePolice(dt: number) {
     const f = this.police!;
-    // 1) 보석: 도둑이 보석을 먹으면 팀 게이지가 충전되고, 100%면 탈출구가 열린다
+    // 1) 보석: 숨는 사람이 보석을 먹으면 팀 게이지가 충전되고, 100%면 탈출구가 열린다
     if (this.police) {
       for (const r of this.runners) {
         if (r.status !== 'alive') continue;
@@ -1244,9 +1244,9 @@ export class Game {
           }
         }
       }
-      if (f.jewelProgress >= 0.999 && !this.exitOpen) { this.exitOpen = true; this.refreshExitLabels(true); this.toast('🚨 비상 탈출구 OPEN! 도둑은 탈출할 수 있어요!', '#9dffb0'); }
+      if (f.jewelProgress >= 0.999 && !this.exitOpen) { this.exitOpen = true; this.refreshExitLabels(true); this.toast('🚨 비상 탈출구 OPEN! 숨는 사람은 탈출할 수 있어요!', '#9dffb0'); }
     }
-    // 2) 체포: 경찰이 도둑에게 닿으면 감옥으로
+    // 2) 체포: 술래이 숨는 사람에게 닿으면 감옥으로
     for (const cop of this.chars) {
       if (cop.role !== 'tagger' || cop.status !== 'alive' || cop.stun > 0 || this.copHeld(cop)) continue;
       for (const r of this.runners) {
@@ -1258,7 +1258,7 @@ export class Game {
         }
       }
     }
-    // 3) 구출: 자유로운 도둑이 감옥 레버 구역에서 잠시 머물면 갇힌 도둑이 모두 풀려난다
+    // 3) 구출: 자유로운 숨는 사람이 감옥 레버 구역에서 잠시 머물면 갇힌 숨는 사람이 모두 풀려난다
     const prisoners = this.runners.filter((r) => r.status === 'frozen');
     let rescuer: Char | null = null, bd = RESCUE_R;
     if (prisoners.length) {
@@ -1273,7 +1273,7 @@ export class Game {
       this.rescueT = Math.min(RESCUE_TIME, this.rescueT + dt);
       if (this.rescueT >= RESCUE_TIME) { this.releasePrisoners(rescuer, prisoners); this.rescueT = 0; this.rescuer = null; }
     } else this.rescueT = Math.max(0, this.rescueT - dt * 1.5);
-    // 4) 비상 탈출: 보석 100% 후 열린 탈출구에 도둑이 도착하면 즉시 승리
+    // 4) 비상 탈출: 보석 100% 후 열린 탈출구에 숨는 사람이 도착하면 즉시 승리
     if (this.exitOpen) {
       const exit = f.exits[0];
       if (exit) for (const r of this.runners) {
@@ -1287,7 +1287,7 @@ export class Game {
     this.checkPoliceEnd();
   }
 
-  /** 모든 도둑이 감옥에 있으면 경찰팀 승리 · 제한시간이 끝나면 도둑팀 승리 */
+  /** 모든 숨는 사람이 감옥에 있으면 술래팀 승리 · 제한시간이 끝나면 숨는 사람팀 승리 */
   checkPoliceEnd() {
     const rs = this.runners;
     if (rs.every((r) => r.status === 'frozen')) this.endRound('tagger', 'all_jailed');
@@ -1314,7 +1314,7 @@ export class Game {
     };
   }
 
-  /** 화면 밖 경찰/도둑 + 감옥 · 열린 탈출구 안내 화살표 */
+  /** 화면 밖 술래/숨는 사람 + 감옥 · 열린 탈출구 안내 화살표 */
   buildPoliceMarkers(): Marker[] {
     const p = this.player, f = this.police!;
     const out: Marker[] = [];
@@ -2119,8 +2119,8 @@ export class Game {
   }
 
   /**
-   * 경찰 AI: 얼음땡 술래 AI(목표 선정 · 선읽기 · 대시)를 바탕으로
-   * 동료와 같은 도둑을 겹쳐 쫓지 않고, 갇힌 도둑이 있으면 한 명이 감옥을 지키며, 열린 탈출구를 막는다.
+   * 술래 AI: 얼음땡 술래 AI(목표 선정 · 선읽기 · 대시)를 바탕으로
+   * 동료와 같은 숨는 사람을 겹쳐 쫓지 않고, 갇힌 숨는 사람이 있으면 한 명이 감옥을 지키며, 열린 탈출구를 막는다.
    */
   aiCop(c: Char) {
     const ai = c.ai, D = this.diff, f = this.police!;
@@ -2133,7 +2133,7 @@ export class Game {
       const mates = this.chars.filter((o) => o !== c && o.role === 'tagger' && o.status === 'alive');
       const jailed = this.runners.filter((r) => r.status === 'frozen').length;
       const jx = f.jail.x, jz = f.jail.z;
-      // 갇힌 도둑이 있을 때 번호가 가장 낮은 경찰이 감옥 지킴이
+      // 갇힌 숨는 사람이 있을 때 번호가 가장 낮은 술래이 감옥 지킴이
       const guard = jailed > 0 && !mates.some((o) => o.id < c.id);
       let best: Char | null = null, bs = Infinity;
       for (const e of free) {
@@ -2153,16 +2153,16 @@ export class Game {
       const dJ = Math.hypot(t.pos.x - jx, t.pos.z - jz);
       let chasing = true;
       if (guard && dJ > 8) {
-        // 감옥 앞 구출 범위 바로 바깥에서 가장 가까운 도둑 쪽을 막는다
+        // 감옥 앞 구출 범위 바로 바깥에서 가장 가까운 숨는 사람 쪽을 막는다
         const dir = tmpV.set(t.pos.x - jx, 0, t.pos.z - jz).normalize();
         ai.goal = new THREE.Vector3(jx + dir.x * (RESCUE_R + 0.6), 0, jz + dir.z * (RESCUE_R + 0.6));
         chasing = false;
       } else if (d > 14) {
-        // 멀리 있는 도둑도 탈출구가 아닌 도둑의 현재 위치를 기준으로 추격한다
+        // 멀리 있는 숨는 사람도 탈출구가 아닌 숨는 사람의 현재 위치를 기준으로 추격한다
         ai.goal = new THREE.Vector3(t.pos.x, 0, t.pos.z);
         chasing = false;
       } else {
-        // 경찰은 도둑의 움직임을 절반만 예측한다 (완벽한 요격이면 도둑이 버틸 수 없다)
+        // 술래은 숨는 사람의 움직임을 절반만 예측한다 (완벽한 요격이면 숨는 사람이 버틸 수 없다)
         const lead = Math.min(1, d / 8) * D.tagLead * 0.5;
         ai.goal = new THREE.Vector3(t.pos.x + t.vel.x * lead, 0, t.pos.z + t.vel.z * lead);
         if (pointBlocked(this.world.colliders, ai.goal.x, ai.goal.z, 0.3)) ai.goal.set(t.pos.x, 0, t.pos.z);
@@ -2179,8 +2179,8 @@ export class Game {
   }
 
   /**
-   * 도둑 도주 목표: 경찰보다 먼저 도착할 수 있고(여유 거리), 열려 있고, 맵 가장자리(막다른 곳)가 아닌 지점.
-   * 경찰 쪽으로 가로질러 지나가는 경로는 감점하고, 직전 목표는 가점을 줘 떨림 없이 이어간다.
+   * 숨는 사람 도주 목표: 술래보다 먼저 도착할 수 있고(여유 거리), 열려 있고, 맵 가장자리(막다른 곳)가 아닌 지점.
+   * 술래 쪽으로 가로질러 지나가는 경로는 감점하고, 직전 목표는 가점을 줘 떨림 없이 이어간다.
    */
   safeGoal(c: Char, cops: Char[]): THREE.Vector3 | null {
     if (!cops.length) return null;
@@ -2214,8 +2214,8 @@ export class Game {
   }
 
   /**
-   * 도둑 AI: 얼음땡 도망자 AI(도주 방향 · 비상 대시 · 아이템)를 바탕으로
-   * 경찰이 가까우면 도망, 안전하면 갇힌 동료 구출 / 열린 탈출구로 이동 / 아이템 획득.
+   * 숨는 사람 AI: 얼음땡 도망자 AI(도주 방향 · 비상 대시 · 아이템)를 바탕으로
+   * 술래이 가까우면 도망, 안전하면 갇힌 동료 구출 / 열린 탈출구로 이동 / 아이템 획득.
    */
   aiRobber(c: Char) {
     const ai = c.ai, D = this.diff, f = this.police!;
@@ -2558,7 +2558,7 @@ export class Game {
     // frozen
     m.ice.visible = c.status === 'frozen' && this.mode !== 'police';
     if (c.status === 'frozen' && this.mode === 'police') {
-      // 감옥에 갇힌 도둑: 창살을 붙잡고 풀죽은 자세
+      // 감옥에 갇힌 숨는 사람: 창살을 붙잡고 풀죽은 자세
       m.armL.rotation.z = 2.3; m.armR.rotation.z = -2.3;
       m.armL.rotation.x = -0.35; m.armR.rotation.x = -0.35;
       m.head.rotation.x = 0.25; m.head.rotation.y = Math.sin(t * 0.9 + c.id) * 0.3;
