@@ -50,7 +50,7 @@ export const ALL_MAPS: MapId[] = ['plaza', 'beach', 'snow', 'night'];
 export const MODE_INFO: Record<Mode, { name: string; sub: string; desc: string; color: string }> = {
   icetag: { name: '얼음땡', sub: '1 VS 5', desc: '술래에게서 도망치고, 위험하면 얼음! 친구가 땡으로 구해줘요', color: '#3b9dff' },
   ojaemi: { name: '오재미', sub: '1:1 · 2:2 · 3:3', desc: '오재미를 주워 던지고 피하는 대결! 1대1 · 2대2 · 3대3', color: '#ff7a3b' },
-  police: { name: '경찰과 도둑', sub: '3 VS 3', desc: '경찰은 도둑을 모두 체포! 도둑은 3분간 버티거나 탈출구로 도망치기', color: '#3f66d8' },
+  police: { name: '경찰과 도둑', sub: '2 VS 4', desc: '경찰 2명은 도둑 4명을 체포! 도둑은 2분간 버티면 승리', color: '#3f66d8' },
 };
 
 export interface StageDef {
