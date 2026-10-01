@@ -40,10 +40,10 @@ export const AI_NAMES: Record<Animal, string> = {
 };
 
 export const MAP_INFO: Record<MapId, { name: string; sub: string; thumb: string; unlockStars: number; emoji: string }> = {
-  plaza: { name: '동물마을 광장', sub: '분수와 꽃밭이 있는 아늑한 마을', thumb: 'images/map-plaza.jpg', unlockStars: 0, emoji: '🏡' },
-  beach: { name: '해변마을', sub: '야자수와 부두가 있는 바닷가', thumb: 'images/map-beach.jpg', unlockStars: 1, emoji: '🏖️' },
-  snow: { name: '눈 덮인 숲', sub: '눈사람과 얼음 연못의 겨울 숲', thumb: 'images/map-snow.jpg', unlockStars: 3, emoji: '⛄' },
-  night: { name: '밤의 섬', sub: '달빛과 등불이 비추는 작은 항구', thumb: 'images/map-night.jpg', unlockStars: 6, emoji: '🌙' },
+  plaza: { name: '동물마을 광장', sub: '분수와 꽃밭이 있는 아늑한 마을', thumb: '/images/map-plaza.jpg', unlockStars: 0, emoji: '🏡' },
+  beach: { name: '해변마을', sub: '야자수와 부두가 있는 바닷가', thumb: '/images/map-beach.jpg', unlockStars: 1, emoji: '🏖️' },
+  snow: { name: '눈 덮인 숲', sub: '눈사람과 얼음 연못의 겨울 숲', thumb: '/images/map-snow.jpg', unlockStars: 3, emoji: '⛄' },
+  night: { name: '밤의 섬', sub: '달빛과 등불이 비추는 작은 항구', thumb: '/images/map-night.jpg', unlockStars: 6, emoji: '🌙' },
 };
 export const ALL_MAPS: MapId[] = ['plaza', 'beach', 'snow', 'night'];
 
