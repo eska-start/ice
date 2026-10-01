@@ -560,7 +560,7 @@ export class Game {
       c.ai.goal = null; c.ai.target = null; c.ai.rescue = null; c.ai.dodgeT = 0; c.ai.throwCd = rand(0.4, 1.4); c.ai.wanderT = 0;
       c.ai.path.length = 0; c.ai.pathT = 0; c.ai.stuckT = 0; c.ai.stuckCount = 0; c.ai.unstickT = 0; c.ai.lastPos.copy(c.pos);
       this.setLabel(c, this.mode === 'icetag' && c.role === 'tagger' ? '술래' : null, '#ff6b6b', 1.0);
-      if (policeStart) this.setLabel(c, c.role === 'tagger' ? '🚓 경찰' : '🏃 도둑', c.role === 'tagger' ? '#8fbcff' : '#ffa0a0', 0.8);
+      // 숨바꼭질에서는 역할 머리 위에 경찰/도둑 라벨을 표시하지 않음
     }
     for (const it of this.items) { it.active = true; it.respawn = 0; it.mesh.visible = true; }
     if (this.mode === 'ojaemi') {
@@ -1050,8 +1050,16 @@ export class Game {
     const nearby = this.nearestHideProps(c, 5.5);
     if (!nearby.length) { this.toastFor(c, '🔍 주변에 숨을 만한 사물이 없어요', '#d9d3ff'); return; }
     const chosen = pick(nearby.slice(0, Math.min(4, nearby.length)));
-    const proxy = this.makeHideProp(chosen.kind, c.pos.x, c.pos.z);
-    proxy.mesh.scale.setScalar(0.96 + Math.random() * 0.08);
+    // 실제 맵에 존재하는 사물을 그대로 복제해 변신한다. 새로 만든 비슷한 모양이 아니라
+    // 바로 옆에 있는 기존 오브젝트와 같은 종류/외형을 사용한다.
+    const proxyMesh = chosen.mesh.clone(true);
+    proxyMesh.position.set(c.pos.x, 0, c.pos.z);
+    proxyMesh.rotation.copy(chosen.mesh.rotation);
+    proxyMesh.scale.copy(chosen.mesh.scale);
+    proxyMesh.visible = true;
+    proxyMesh.traverse((o) => { o.visible = true; if ('castShadow' in o) (o as THREE.Mesh).castShadow = true; });
+    this.scene.add(proxyMesh);
+    const proxy: HideProp = { kind: chosen.kind, mesh: proxyMesh, x: c.pos.x, z: c.pos.z };
     c.hideProp = proxy; c.hideT = 0; c.hideStillT = 0;
     c.m.root.visible = false;
     c.hideMission = Math.min(this.hideMissionTotal, c.hideMission + 1);
@@ -3279,6 +3287,8 @@ export class Game {
       players: this.playerStats(), markers: this.phase === 'playing' || this.phase === 'countdown' ? this.buildMarkers() : [],
       stageGoal: this.stage ? this.stage.goal : null, stageProgress, final: this.finalSummary,
       police: null,
+      hideTransformed: isPolice && p.role === 'runner' && !!p.hideProp,
+      hideCanTransform: isPolice && p.role === 'runner' && p.status === 'alive' && p.stun <= 0,
     });
   }
 }
