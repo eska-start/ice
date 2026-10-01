@@ -38,7 +38,7 @@ export function makeDemoCfg(mode: Mode, map: MapId, opts: { cinematic?: boolean;
 }
 
 export function makeMatchCfg(mode: Mode, map: MapId, animal: Animal, name: string, difficulty: Difficulty, quality: Quality, seat = 0, multiplayer = false, outfit?: Outfit, teamSize: TeamSize = 3): GameConfig {
-  const n: TeamSize = mode === 'ojaemi' ? teamSize : 3;
+  const n: TeamSize = mode === 'ojaemi' || mode === 'police' ? teamSize : 3;
   const { slots, playerIndex } = buildSlots(mode, animal, name, seat, outfit, n);
   return { mode, map, slots, playerIndex, difficulty, quality, multiplayer, teamSize: n };
 }
