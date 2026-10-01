@@ -160,7 +160,7 @@ export interface Marker {
   animal: Animal;
   frozen: boolean;
   tagger: boolean;
-  /** 경찰과 도둑: 화면 밖 감옥 / 탈출구 안내 화살표 */
+  /** 숨바꼭질: 화면 밖 감옥 /  안내 화살표 */
   kind?: 'jail' | 'exit';
 }
 
@@ -178,7 +178,7 @@ export interface FinalSummary {
   goalText: string;
 }
 
-/** 경찰과 도둑 모드 HUD 정보 (도둑 기준: free=도망 중 · jailed=감옥 · escaped=탈출) */
+/** 숨바꼭질 모드 HUD 정보 (숨는 사람 기준: free=도망 중 · jailed=감옥 · escaped=탈출) */
 export interface PoliceHud {
   free: number;
   jailed: number;
@@ -189,9 +189,9 @@ export interface PoliceHud {
   /** 내가 지금 구출 중인가 */
   rescuing: boolean;
   exitsOpen: boolean;
-  /** 탈출구가 열리기까지 남은 초 */
+  /** 가 열리기까지 남은 초 */
   exitIn: number;
-  /** 경찰 출동까지 남은 초 (0이면 출동 완료) */
+  /** 술래 출동까지 남은 초 (0이면 출동 완료) */
   holdIn: number;
 }
 
