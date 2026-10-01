@@ -760,26 +760,17 @@ export class Game {
   // ---- actions usable for any character (local player or remote human on the host)
   actPrimary(c: Char) {
     if (this.mode === 'police') {
-      if (c.role === 'runner') { this.toggleHide(c); return; }
+      if (c.role === 'runner') this.toggleHide(c);
       return;
     }
-    if (this.mode === 'ojaemi') {
-        this.policeSkillCd = 12; this.policeFlashT = 2;
-        this.fx.emit('spark', tmpV.set(c.pos.x, 1.4, c.pos.z), 28, 7, 0.8, 4, 1.4);
-        this.toastFor(c, '🚨 사이렌 플래시! 2초간 도둑 위치가 보여요!', '#9dffb0');
-      } else if (c.item === 'banana') {
-        this.useItem(c); this.policeSkillCd = 12;
-      } else {
-        this.policeSkillCd = 12; this.applyRobberSmoke(c);
-      }
-      return;
-    }
-    else if (c.role === 'runner') {
+    if (this.mode === 'ojaemi') { this.actThrow(c); return; }
+    if (c.role === 'runner') {
       if (!this.canAct(c)) return;
       if (c.freezeCd > 0) { this.toastFor(c, '❄️ 얼음 준비 중...', '#c8d8ff'); return; }
       this.freeze(c);
     }
   }
+
   applyRobberSmoke(c: Char) {
     const p = new THREE.Mesh(new THREE.SphereGeometry(2.3, 20, 12), new THREE.MeshBasicMaterial({ color: 0x9da6b8, transparent: true, opacity: 0.18, depthWrite: false }));
     p.position.set(c.pos.x, 1.1, c.pos.z); this.scene.add(p);
