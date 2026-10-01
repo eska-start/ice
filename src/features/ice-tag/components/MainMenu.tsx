@@ -483,13 +483,13 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
           </ul>
         </section>
         <section className="bg-blue-50 rounded-2xl p-4">
-          <div className="text-blue-900 font-bold text-[15px] mb-1.5">경찰과 도둑 <span className="text-blue-500 font-semibold text-xs ml-1">1 VS 3 · 2 VS 4 · 90초</span></div>
+          <div className="text-blue-900 font-bold text-[15px] mb-1.5">숨바꼭질 <span className="text-blue-500 font-semibold text-xs ml-1">1 VS 5 · 120초</span></div>
           <ul className="list-disc pl-4 space-y-1">
-            <li>시작할 때 <b className="text-slate-800">경찰 / 도둑 역할이 무작위</b>로 정해지고, 나머지는 AI가 맡아요.</li>
-            <li><b className="text-slate-800">경찰</b>이 도둑에게 닿으면 체포 → <b className="text-slate-800">감옥</b>으로 보내요.</li>
-            <li>갇힌 도둑은 다른 도둑이 <b className="text-slate-800">감옥에 접근해 잠시 머물면</b> 모두 구출돼요.</li>
-            <li>1 VS 3 또는 2 VS 4로 시작해요. 도둑은 보석을 모아 100%가 되면 비상 탈출구를 열고 탈출하거나 90초를 버티면 승리하고, 경찰은 모든 도둑을 체포하면 승리해요.</li>
-            <li><b className="text-slate-800">Space / J</b>로 경찰은 사이렌 플래시, 도둑은 연막탄을 사용해요. 쿨타임은 12초예요.</li>
+            <li>시작할 때 <b className="text-slate-800">술래 1명 / 숨는 팀 5명</b>으로 나뉘고, 나머지는 AI가 맡아요.</li>
+            <li><b className="text-slate-800">숨기</b>를 누르면 주변의 비슷한 사물로 변신해 술래를 속일 수 있어요.</li>
+            <li>변신한 상태로 움직일 수도 있고, <b className="text-slate-800">숨기</b>를 다시 누르면 변신을 풀 수 있어요.</li>
+            <li>숨는 팀은 <b className="text-slate-800">120초 동안 살아남으면 승리</b>, 술래는 숨은 플레이어를 모두 찾아내면 승리해요.</li>
+            <li><b className="text-slate-800">Space / J</b>로 숨기 · 변신 해제를 사용해요. 같은 자리에 오래 있으면 사물이 흔들려 의심 단서가 생겨요.</li>
           </ul>
         </section>
         <section className="bg-indigo-50 rounded-2xl p-4">
@@ -609,7 +609,7 @@ export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; 
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-white text-[22px] font-extrabold leading-tight tracking-tight">게임 시작</span>
-                <span className="block text-white/85 text-xs font-medium [@media(max-height:620px)]:hidden">얼음땡 · 오재미 · 경찰과 도둑</span>
+                <span className="block text-white/85 text-xs font-medium [@media(max-height:620px)]:hidden">얼음땡 · 오재미 · 숨바꼭질</span>
               </span>
               <ChevronRight size={22} className="text-white/90 shrink-0" strokeWidth={2.6} />
             </button>
