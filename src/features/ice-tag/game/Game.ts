@@ -411,7 +411,12 @@ export class Game {
     this.trackMouse(e);
     this.updateMouseAim();
     if (e.button === 0) {
-      // 좌클릭한 지점으로 자동 이동. WASD를 입력하면 키보드 이동이 우선.
+      if (this.mode === 'ojaemi') {
+        // 오재미 마우스 모드에서는 좌클릭이 즉시 던지기
+        this.pressPrimary();
+        return;
+      }
+      // 다른 모드의 기존 좌클릭 이동은 유지
       if (this.mouseAimValid) {
         this.mouseMoveTarget.copy(this.mouseAim);
         this.mouseMoveTargetValid = true;
