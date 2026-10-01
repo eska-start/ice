@@ -521,6 +521,7 @@ export class Game {
     this.fx.clearTexts();
     const taggerId = this.mode === 'icetag' ? this.taggerOrder[(this.round - 1) % 3] : -1;
     const policeStart = this.mode === 'police' ? this.assignHideRoles() : null;
+    if (this.mode === 'police' && this.round > 1) this.randomizeHideProps();
     let ri = 0;
     const idx = { red: 0, blue: 0 };
     for (const c of this.chars) {
@@ -990,6 +991,23 @@ export class Game {
     }
     this.hideProps = props;
     this.hideMissionTotal = 2;
+  }
+
+  randomizeHideProps() {
+    if (!this.hideProps.length) return;
+    const occupied: THREE.Vector2[] = [];
+    for (const p of this.hideProps) {
+      let placed = false;
+      for (let tries = 0; tries < 40; tries++) {
+        const x = rand(-25.5, 25.5), z = rand(-31.5, 31.5);
+        if (Math.abs(x) < 8 && Math.abs(z) < 10) continue;
+        if (pointBlocked(this.world.colliders, x, z, 0.8)) continue;
+        if (occupied.some((o) => o.distanceTo(new THREE.Vector2(x, z)) < 2.1)) continue;
+        p.x = x; p.z = z; p.mesh.position.set(x, 0, z); p.mesh.rotation.set(0, Math.random() * Math.PI * 2, 0);
+        occupied.push(new THREE.Vector2(x, z)); placed = true; break;
+      }
+      if (!placed) { p.x = 0; p.z = 0; p.mesh.position.set(0, 0, 0); }
+    }
   }
 
   assignHideRoles(): Map<number, THREE.Vector2> {
