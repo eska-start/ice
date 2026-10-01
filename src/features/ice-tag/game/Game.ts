@@ -1005,10 +1005,28 @@ export class Game {
     if (this.near(by)) this.sfx.thaw();
   }
 
-  /** 경찰과 도둑 한 프레임: 탈출구 개방 → 체포 → 구출 → 탈출 → 승패 판정 */
+  /** 경찰과 도둑 한 프레임: 보석 수집 → 탈출구 개방 → 체포 → 구출 → 탈출 → 승패 판정 */
   updatePolice(dt: number) {
     const f = this.police!;
-    // 1) 체포: 경찰이 도둑에게 닿으면 감옥으로
+    // 1) 보석: 도둑이 보석을 먹으면 팀 게이지가 충전되고, 100%면 탈출구가 열린다
+    if (this.police) {
+      for (const r of this.runners) {
+        if (r.status !== 'alive') continue;
+        for (const j of f.jewels) {
+          if (!j.active) continue;
+          if ((r.pos.x - j.x) ** 2 + (r.pos.z - j.z) ** 2 < 1.05 * 1.05) {
+            j.active = false;
+            f.jewelProgress = Math.min(1, f.jewelProgress + 1 / f.jewels.length);
+            this.fx.emit('spark', tmpV.set(j.x, 0.8, j.z), 18, 4, 0.6, 3, 1.1);
+            this.fx.floatText(`보석! ${Math.round(f.jewelProgress * 100)}%`, '#7ee7ff', tmpV.set(j.x, 2.4, j.z), 1.2);
+            this.toastFor(r, `💎 보석 획득! 게이지 ${Math.round(f.jewelProgress * 100)}%`, '#7ee7ff');
+            break;
+          }
+        }
+      }
+      if (f.jewelProgress >= 0.999) this.exitOpen = true;
+    }
+    // 2) 체포: 경찰이 도둑에게 닿으면 감옥으로
     for (const cop of this.chars) {
       if (cop.role !== 'tagger' || cop.status !== 'alive' || cop.stun > 0 || this.copHeld(cop)) continue;
       for (const r of this.runners) {
@@ -1020,7 +1038,7 @@ export class Game {
         }
       }
     }
-    // 2) 구출: 자유로운 도둑이 감옥에 접근해 잠시 머물면 갇힌 도둑이 모두 풀려난다
+    // 3) 구출: 자유로운 도둑이 감옥 레버 구역에서 잠시 머물면 갇힌 도둑이 모두 풀려난다
     const prisoners = this.runners.filter((r) => r.status === 'frozen');
     let rescuer: Char | null = null, bd = RESCUE_R;
     if (prisoners.length) {
@@ -1035,6 +1053,17 @@ export class Game {
       this.rescueT = Math.min(RESCUE_TIME, this.rescueT + dt);
       if (this.rescueT >= RESCUE_TIME) { this.releasePrisoners(rescuer, prisoners); this.rescueT = 0; this.rescuer = null; }
     } else this.rescueT = Math.max(0, this.rescueT - dt * 1.5);
+    // 4) 비상 탈출: 보석 100% 후 열린 탈출구에 도둑이 도착하면 즉시 승리
+    if (this.exitOpen) {
+      const exit = f.exits[0];
+      if (exit) for (const r of this.runners) {
+        if (r.status !== 'alive') continue;
+        if ((r.pos.x - exit.x) ** 2 + (r.pos.z - exit.z) ** 2 < 1.5 * 1.5) {
+          this.endRound('runner', 'escaped');
+          break;
+        }
+      }
+    }
     this.checkPoliceEnd();
   }
 
@@ -1059,8 +1088,8 @@ export class Game {
       total: rs.length,
       rescue: this.rescueT / RESCUE_TIME,
       rescuing: this.rescuer === this.player,
-      exitsOpen: false,
-      exitIn: 0,
+      exitsOpen: this.exitOpen,
+      exitIn: this.exitOpen ? 0 : 0,
       holdIn: this.phase === 'playing' ? Math.max(0, Math.ceil(COP_HOLD - this.policeT)) : 0,
     };
   }
