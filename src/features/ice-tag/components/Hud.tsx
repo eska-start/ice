@@ -118,11 +118,13 @@ export function EdgeMarkers({ hud }: { hud: HudState }) {
 export function BagIndicator({ hud }: { hud: HudState }) {
   if (hud.mode !== 'ojaemi') return null;
   return (
-    <div className="absolute z-30 pointer-events-none left-1/2 -translate-x-1/2 top-[86px] short:top-[78px]">
-      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-white/90 shadow-lg backdrop-blur-sm transition-all ${hud.hasBag ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white animate-pulse' : 'bg-slate-900/70 text-slate-300'}`}>
-        <span className="text-base leading-none">{hud.hasBag ? '🟠' : '○'}</span>
-        <span className="text-[12px] font-extrabold tracking-tight txt-outline-sm leading-none">{hud.hasBag ? '오재미 보유 중!' : '오재미를 주우세요'}</span>
-      </div>
+    <div className="absolute z-30 pointer-events-none left-1/2 -translate-x-1/2 top-[124px] short:top-[108px]">
+      {hud.hasBag && (
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-white/90 shadow-lg backdrop-blur-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white animate-pulse">
+          <span className="text-base leading-none">🟠</span>
+          <span className="text-[12px] font-extrabold tracking-tight txt-outline-sm leading-none">오재미 보유 중!</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -152,7 +154,7 @@ export function StatusBanner({ hud }: { hud: HudState }) {
     else { text = `🫥 술래를 피해 살아남으세요`; cls = 'bg-slate-800/80'; }
   } else {
     if (hud.stunned) { text = '💫 휘청! 잠시 행동 불능'; cls = 'bg-red-500/85'; }
-    else if (!hud.hasBag) { text = '🟠 근처 오재미를 주워요!'; cls = 'bg-orange-500/85'; }
+
   }
   if (!text) return null;
   return (
