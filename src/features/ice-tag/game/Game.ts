@@ -615,17 +615,15 @@ export class Game {
       this.hero = winner === 'tagger' ? this.tagger : (p.role === 'runner' && p.status !== 'out' ? p : this.runners.find((r) => r.status !== 'out') ?? p);
       this.toast(winner === 'tagger' ? '👹 술래 승리!' : '🏃 도망팀 승리!', winner === 'tagger' ? '#ff8a8a' : '#9fdcff');
     } else if (this.mode === 'police') {
-      survivors = this.runners.filter((r) => r.status !== 'frozen').length;
+      const survivorsNow = this.runners.filter((r) => r.status === 'alive').length;
+      survivors = survivorsNow;
       for (const c of this.chars) {
         c.roundWon = (c.role === 'tagger') === (winner === 'tagger');
         if (c.roundWon) c.st.roundsWon++;
       }
       playerWon = p.roundWon;
-      const cop = p.role === 'tagger' ? p : this.chars.find((c) => c.role === 'tagger') ?? p;
-      const free = p.role === 'runner' && p.status === 'alive' ? p : this.runners.find((r) => r.status === 'alive');
-      this.hero = winner === 'tagger' ? cop : free ?? p;
-      if (winner === 'tagger') this.toast('🚓 경찰 승리! 도둑을 모두 체포!', '#8fbcff');
-      else this.toast(reason === 'escaped' ? '🚪 도둑 탈출 성공! 도둑팀 승리!' : '⏰ 시간 종료! 도둑팀 승리!', '#ffb3b3');
+      this.hero = winner === 'tagger' ? this.tagger : (p.role === 'runner' && p.status === 'alive' ? p : this.runners.find((r) => r.status === 'alive') ?? p);
+      this.toast(winner === 'tagger' ? '🔎 술래 승리! 모두 찾아냈어요!' : '🫥 숨는 팀 승리! 끝까지 살아남았어요!', winner === 'tagger' ? '#ff9a9a' : '#d9d3ff');
     } else {
       for (const c of this.chars) c.roundWon = c.team === winner;
       playerWon = p.team === winner;
