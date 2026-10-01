@@ -11,7 +11,7 @@ import { actionForKey, isSystemKey } from './keys';
 import type { NetMsg } from '../net/net';
 import type { Sfx } from './sfx';
 import { STAGES } from './types';
-import { buildPoliceField, COP_DASH_CD, COP_HOLD, EXIT_OPEN_AT, EXIT_R, POLICE_TIME, RESCUE_R, RESCUE_TIME, ROBBER_SPEED, type PoliceField } from './police';
+import { buildPoliceField, COP_DASH_CD, COP_HOLD, POLICE_TIME, RESCUE_R, RESCUE_TIME, ROBBER_SPEED, type PoliceField } from './police';
 import type { Difficulty, FinalSummary, GameConfig, HudState, ItemType, Marker, Mode, PcControl, Phase, PlayerStat, PoliceHud, PStatus, Role, RoundResult, StageDef, Stats, Team, TeamSize } from './types';
 
 const ROUND_TIME = 90;
@@ -901,7 +901,7 @@ export class Game {
   // ------------------------------------------------------------ 경찰과 도둑
   /** 경찰(role 'tagger' · 파란팀) / 도둑(role 'runner' · 빨간팀)을 무작위로 나누고 시작 위치를 돌려준다. */
   assignPoliceRoles(): Map<number, THREE.Vector2> {
-    const copN = Math.floor(this.chars.length / 2);
+    const copN = Math.max(1, Math.floor(this.chars.length / 3));
     const cops = new Set(shuffle(this.chars.map((c) => c.id)).slice(0, copN));
     const copSpots = shuffle(this.policeStarts.cops);
     const robSpots = shuffle(this.policeStarts.robbers);
@@ -1005,34 +1005,9 @@ export class Game {
     if (this.near(by)) this.sfx.thaw();
   }
 
-  /** 열린 탈출구에 도착한 도둑은 탈출 (status 'out') */
-  escape(r: Char) {
-    r.status = 'out'; r.outT = 0; r.rs.out = true;
-    r.stun = 0; r.stunType = null; r.vel.set(0, 0, 0); r.item = null; r.motoT = 0; r.jellyT = 0;
-    r.m.ufoBeam.visible = false; r.m.moto.visible = false; r.m.jellyBlob.visible = false; r.m.stars.visible = false;
-    r.ai.goal = null;
-    this.setLabel(r, null);
-    this.fx.emit('star', tmpV.set(r.pos.x, 1.6, r.pos.z), 14, 5, 1.0, 4, 1.4);
-    this.fx.ring(tmpV.set(r.pos.x, 0.1, r.pos.z), 0x5dff8a, 6, 0.6);
-    this.fx.floatText('탈출!', '#9dffb0', tmpV.set(r.pos.x, 2.8, r.pos.z), 1.8);
-    if (this.near(r)) this.sfx.thaw();
-    if (r.isPlayer) this.toast('🚪 탈출 성공!', '#9dffb0');
-    else this.toast(`🚪 ${r.name} 탈출!`, '#c9ffd6');
-  }
-
   /** 경찰과 도둑 한 프레임: 탈출구 개방 → 체포 → 구출 → 탈출 → 승패 판정 */
   updatePolice(dt: number) {
     const f = this.police!;
-    if (!this.exitOpen && this.policeT >= EXIT_OPEN_AT) {
-      this.exitOpen = true;
-      this.refreshExitLabels(true);
-      for (const e of f.exits) {
-        this.fx.ring(tmpV.set(e.x, 0.1, e.z), 0x5dff8a, 6, 0.8);
-        this.fx.emit('spark', tmpV.set(e.x, 1.5, e.z), 18, 5, 0.8, 2, 1.2);
-      }
-      this.toast('🚪 탈출구가 열렸다! 도둑은 탈출하라!', '#9dffb0');
-      if (!this.demo) this.sfx.start();
-    }
     // 1) 체포: 경찰이 도둑에게 닿으면 감옥으로
     for (const cop of this.chars) {
       if (cop.role !== 'tagger' || cop.status !== 'alive' || cop.stun > 0 || this.copHeld(cop)) continue;
@@ -1060,21 +1035,13 @@ export class Game {
       this.rescueT = Math.min(RESCUE_TIME, this.rescueT + dt);
       if (this.rescueT >= RESCUE_TIME) { this.releasePrisoners(rescuer, prisoners); this.rescueT = 0; this.rescuer = null; }
     } else this.rescueT = Math.max(0, this.rescueT - dt * 1.5);
-    // 3) 탈출: 열린 탈출구에 도착
-    if (this.exitOpen) {
-      for (const r of this.runners) {
-        if (!this.canAct(r)) continue;
-        if (f.exits.some((e) => Math.hypot(r.pos.x - e.x, r.pos.z - e.z) < EXIT_R)) { this.escape(r); break; }
-      }
-    }
     this.checkPoliceEnd();
   }
 
-  /** 탈출한 도둑이 있으면 도둑팀 승리 · 모든 도둑이 감옥에 있으면 경찰팀 승리 · 시간 종료 시 도둑팀 승리 */
+  /** 모든 도둑이 감옥에 있으면 경찰팀 승리 · 제한시간이 끝나면 도둑팀 승리 */
   checkPoliceEnd() {
     const rs = this.runners;
-    if (rs.some((r) => r.status === 'out')) this.endRound('runner', 'escaped');
-    else if (rs.every((r) => r.status === 'frozen')) this.endRound('tagger', 'all_jailed');
+    if (rs.every((r) => r.status === 'frozen')) this.endRound('tagger', 'all_jailed');
     else if (this.time <= 0) this.endRound('runner', 'timeout');
   }
 
@@ -1092,8 +1059,8 @@ export class Game {
       total: rs.length,
       rescue: this.rescueT / RESCUE_TIME,
       rescuing: this.rescuer === this.player,
-      exitsOpen: this.exitOpen,
-      exitIn: Math.max(0, Math.ceil(EXIT_OPEN_AT - this.policeT)),
+      exitsOpen: false,
+      exitIn: 0,
       holdIn: this.phase === 'playing' ? Math.max(0, Math.ceil(COP_HOLD - this.policeT)) : 0,
     };
   }
@@ -1115,7 +1082,6 @@ export class Game {
     const list = p.role === 'tagger' ? this.runners.filter((r) => r.status === 'alive') : this.chars.filter((c) => c.role === 'tagger' && c.status === 'alive');
     for (const e of list) edge(e.pos.x, e.lift + 1, e.pos.z, { team: e.team, animal: e.animal });
     if (this.runners.some((r) => r.status === 'frozen')) edge(f.jail.x, 1.5, f.jail.z, { team: 'red', animal: 'dog', kind: 'jail' });
-    if (this.exitOpen) for (const e of f.exits) edge(e.x, 1.5, e.z, { team: 'red', animal: 'dog', kind: 'exit' });
     return out;
   }
 
@@ -1930,8 +1896,7 @@ export class Game {
         if (!lineOfSight(this.world.colliders, c.pos.x, c.pos.z, e.pos.x, e.pos.z)) s += 3;
         for (const o of mates) if (o.ai.target === e && o.pos.distanceTo(e.pos) < e.pos.distanceTo(c.pos)) { s += 5; break; }
         if (jailed > 0 && Math.hypot(e.pos.x - jx, e.pos.z - jz) < 7) s -= 5;
-        if (this.exitOpen && f.exits.some((x) => Math.hypot(e.pos.x - x.x, e.pos.z - x.z) < 7)) s -= 4;
-        if (s < bs) { bs = s; best = e; }
+            if (s < bs) { bs = s; best = e; }
       }
       ai.target = best;
       const t = best!;
@@ -1943,7 +1908,7 @@ export class Game {
         const dir = tmpV.set(t.pos.x - jx, 0, t.pos.z - jz).normalize();
         ai.goal = new THREE.Vector3(jx + dir.x * (RESCUE_R + 0.6), 0, jz + dir.z * (RESCUE_R + 0.6));
         chasing = false;
-      } else if (d > 14 && this.exitOpen) {
+      } else if (d > 14) {
         // 멀리 있는 도둑은 그쪽에서 가장 가까운 탈출구를 먼저 막는다
         let ex = f.exits[0], ed = Infinity;
         for (const x of f.exits) { const dd = Math.hypot(t.pos.x - x.x, t.pos.z - x.z); if (dd < ed) { ed = dd; ex = x; } }
