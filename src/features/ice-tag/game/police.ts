@@ -6,7 +6,7 @@ import { std } from './textures';
  * 경찰과 도둑 모드 전용 구조물(감옥 · 탈출구)과 규칙 상수.
  * 기존 맵(buildWorld)은 수정하지 않고, 이 모드일 때만 장면에 덧붙인다.
  */
-export const POLICE_TIME = 180;
+export const POLICE_TIME = 120;
 /** 경기 시작 후 탈출구가 열리기까지의 시간(초) */
 export const EXIT_OPEN_AT = 15;
 /** 경기 시작 직후 경찰이 기지에서 대기하는 시간(초) — 도둑이 먼저 달려 나간다 */
