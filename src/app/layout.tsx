@@ -28,6 +28,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="얼음땡" />
+        <meta name="theme-color" content="#7cc4f0" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
