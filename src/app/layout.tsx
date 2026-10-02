@@ -4,9 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "동물마을 얼음땡 - 3D 모바일 파티 액션",
-  description:
-    "귀여운 동물 친구들과 함께하는 3D 얼음땡 게임. 원본 게임의 캐릭터, 코스튬, 스테이지와 멀티플레이를 즐겨보세요.",
-  manifest: "/manifest.webmanifest",
+  description: "귀여운 동물 친구들과 함께하는 3D 얼음땡 게임. 원본 게임의 캐릭터, 코스튬, 스테이지와 멀티플레이를 즐겨보세요.",
+  manifest: "/manifest.json",
   applicationName: "얼음땡",
   appleWebApp: {
     capable: true,
@@ -28,34 +27,23 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <head>
-        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="얼음땡" />
         <meta name="theme-color" content="#7cc4f0" />
+        <link rel="icon" href="/icons/icon-192.png" type="image/png" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-        />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Jua&display=swap"
-          rel="stylesheet"
-        />
+        <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased">
         {children}
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              if ("serviceWorker" in navigator) {
-                window.addEventListener("load", function () {
-                  navigator.serviceWorker.register("/sw.js").catch(function () {});
-                });
-              }
-            `,
+            __html: 'if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {}); }); }',
           }}
         />
       </body>
