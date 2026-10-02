@@ -5,12 +5,13 @@
   "description": "귀여운 동물 친구들과 함께하는 3D 얼음땡 게임",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
-  "display_override": ["fullscreen", "standalone"],
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#7cc4f0",
   "theme_color": "#7cc4f0",
   "lang": "ko",
+  "dir": "ltr",
   "prefer_related_applications": false,
   "icons": [
     {
