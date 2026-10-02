@@ -6,6 +6,13 @@ export const metadata: Metadata = {
   title: "동물마을 얼음땡 - 3D 모바일 파티 액션",
   description:
     "귀여운 동물 친구들과 함께하는 3D 얼음땡 게임. 원본 게임의 캐릭터, 코스튬, 스테이지와 멀티플레이를 즐겨보세요.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "얼음땡",
+  appleWebApp: {
+    capable: true,
+    title: "얼음땡",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
@@ -33,7 +40,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ("serviceWorker" in navigator) {
+                window.addEventListener("load", function () {
+                  navigator.serviceWorker.register("/sw.js").catch(function () {});
+                });
+              }
+            `,
+          }}
+        />
+      </body>
     </html>
   );
 }
