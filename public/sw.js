@@ -1,5 +1,15 @@
-const CACHE_NAME = "ice-tag-pwa-v5";
-const APP_SHELL = ["/"];
+const CACHE_NAME = "ice-tag-pwa-v6";
+const APP_SHELL = [
+  "/",
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/apple-touch-icon.png",
+  "/icons/icon-maskable-192.png",
+  "/icons/icon-maskable-512.png",
+  "/favicon.png"
+];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

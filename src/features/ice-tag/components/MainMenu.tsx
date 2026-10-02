@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { BookOpen, Check, ChevronRight, Crown, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, X } from 'lucide-react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
+import { BookOpen, Check, ChevronRight, Crown, Download, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, X } from 'lucide-react';
 import { Preview3D } from './Preview3D';
 import { CharacterViewer } from './CharacterViewer';
 import { CostumeIcon, Portrait } from './Portrait';
@@ -545,8 +545,25 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
 }
 
 // ------------------------------------------------------------ main menu
+function subscribeStandalone(callback: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  const mql = window.matchMedia('(display-mode: standalone)');
+  mql.addEventListener('change', callback);
+  return () => mql.removeEventListener('change', callback);
+}
+
+function getStandaloneSnapshot() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+  );
+}
+
 export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; setSave: (s: SaveData) => void; onPlay: () => void; onStages: () => void }) {
   const [modal, setModal] = useState<Modal>(null);
+  const isStandalone = useSyncExternalStore(subscribeStandalone, getStandaloneSnapshot, () => false);
+
   const demoCfg = useMemo(() => makeDemoCfg('icetag', 'plaza', { cinematic: true, quality: save.quality }), [save.quality]);
   const stars = totalStars(save);
   const level = 1 + Math.floor(save.records.games / 3);
@@ -584,7 +601,18 @@ export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; 
               <div className="mt-1.5 w-20 h-1 rounded-full bg-slate-900/10 overflow-hidden"><div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.max(8, xp)}%` }} /></div>
             </div>
           </button>
-          <div className="flex gap-1.5 shrink-0">
+          <div className="flex gap-1.5 shrink-0 items-center">
+            {!isStandalone && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('trigger-pwa-install'))}
+                className="rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-sky-950 font-black text-xs px-3 h-8 flex items-center gap-1.5 shadow-lg shadow-amber-500/25 press active:scale-95 transition hover:brightness-105 border border-white/60"
+                title="웹앱으로 설치하기"
+              >
+                <Download size={13} className="stroke-[3]" />
+                <span>앱 설치</span>
+              </button>
+            )}
             <div className="glass-dark rounded-full flex items-center gap-1.5 pl-1.5 pr-3 h-8 text-white text-sm font-bold tabular-nums"><Coin />{save.coins}</div>
             <div className="glass-dark rounded-full flex items-center gap-1.5 pl-2 pr-3 h-8 text-white text-sm font-bold tabular-nums"><Star size={15} className="text-amber-300" fill="currentColor" strokeWidth={0} />{stars}</div>
           </div>

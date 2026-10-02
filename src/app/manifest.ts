@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "동물마을 얼음땡",
     short_name: "얼음땡",
-    description: "귀여운 동물 친구들과 함께하는 3D 얼음땡 게임",
+    description: "귀여운 동물 친구들과 함께하는 3D 모바일 파티 액션 얼음땡 게임",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -40,6 +40,12 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+      {
+        src: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+        purpose: "any",
       },
     ],
   };
