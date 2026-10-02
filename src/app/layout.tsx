@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "동물마을 얼음땡 - 3D 모바일 파티 액션",
   description: "귀여운 동물 친구들과 함께하는 3D 얼음땡 게임. 원본 게임의 캐릭터, 코스튬, 스테이지와 멀티플레이를 즐겨보세요.",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   applicationName: "얼음땡",
   appleWebApp: {
     capable: true,
@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="얼음땡" />
