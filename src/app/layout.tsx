@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { PWAInstaller } from "@/components/pwa-installer";
 
 export const metadata: Metadata = {
   title: "동물마을 얼음땡 - 3D 모바일 파티 액션",
@@ -11,6 +12,10 @@ export const metadata: Metadata = {
     capable: true,
     title: "얼음땡",
     statusBarStyle: "default",
+  },
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
   },
 };
 
@@ -33,6 +38,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="apple-mobile-web-app-title" content="얼음땡" />
         <meta name="theme-color" content="#7cc4f0" />
         <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -41,6 +47,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="antialiased">
         {children}
+        <PWAInstaller />
         <script
           dangerouslySetInnerHTML={{
             __html: 'if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {}); }); }',

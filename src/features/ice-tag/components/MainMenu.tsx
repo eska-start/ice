@@ -433,6 +433,19 @@ function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; se
         <button className="w-full flex items-center justify-between px-4 h-14" onClick={onHowto}>
           <span className="text-[15px] font-semibold text-slate-800">게임 방법</span><ChevronRight size={18} className="text-slate-400" />
         </button>
+        <button
+          type="button"
+          className="w-full flex items-center justify-between px-4 h-14 text-left"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('trigger-pwa-install'));
+          }}
+        >
+          <span>
+            <span className="block text-[15px] font-semibold text-slate-800">홈 화면에 앱으로 추가</span>
+            <span className="block text-xs text-slate-400">안드로이드 앱처럼 전체화면으로 실행</span>
+          </span>
+          <ChevronRight size={18} className="text-slate-400" />
+        </button>
         <div className="w-full px-4 py-3">
           <div className="text-[15px] font-semibold text-slate-800">PC 조작 방식</div>
           <div className="text-xs text-slate-400 mb-2">키보드: WASD 이동 · 마우스: 우클릭 이동 + 커서 조준</div>
