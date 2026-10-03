@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import { PWAInstaller } from "@/components/pwa-installer";
 
 export const metadata: Metadata = {
   title: "동물마을 얼음땡 - 3D 모바일 파티 액션",
@@ -55,7 +54,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="antialiased">
         {children}
-        <PWAInstaller />
         <script
           dangerouslySetInnerHTML={{
             __html: `

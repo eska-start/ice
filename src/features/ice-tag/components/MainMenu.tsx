@@ -1,5 +1,5 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
-import { BookOpen, Check, ChevronRight, Crown, Download, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { BookOpen, Check, ChevronRight, Crown, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, X } from 'lucide-react';
 import { Preview3D } from './Preview3D';
 import { CharacterViewer } from './CharacterViewer';
 import { CostumeIcon, Portrait } from './Portrait';
@@ -433,19 +433,6 @@ function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; se
         <button className="w-full flex items-center justify-between px-4 h-14" onClick={onHowto}>
           <span className="text-[15px] font-semibold text-slate-800">게임 방법</span><ChevronRight size={18} className="text-slate-400" />
         </button>
-        <button
-          type="button"
-          className="w-full flex items-center justify-between px-4 h-14 text-left"
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent('trigger-pwa-install'));
-          }}
-        >
-          <span>
-            <span className="block text-[15px] font-semibold text-slate-800">홈 화면에 앱으로 추가</span>
-            <span className="block text-xs text-slate-400">안드로이드 앱처럼 전체화면으로 실행</span>
-          </span>
-          <ChevronRight size={18} className="text-slate-400" />
-        </button>
         <div className="w-full px-4 py-3">
           <div className="text-[15px] font-semibold text-slate-800">PC 조작 방식</div>
           <div className="text-xs text-slate-400 mb-2">키보드: WASD 이동 · 마우스: 우클릭 이동 + 커서 조준</div>
@@ -545,24 +532,8 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
 }
 
 // ------------------------------------------------------------ main menu
-function subscribeStandalone(callback: () => void) {
-  if (typeof window === 'undefined') return () => {};
-  const mql = window.matchMedia('(display-mode: standalone)');
-  mql.addEventListener('change', callback);
-  return () => mql.removeEventListener('change', callback);
-}
-
-function getStandaloneSnapshot() {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  );
-}
-
 export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; setSave: (s: SaveData) => void; onPlay: () => void; onStages: () => void }) {
   const [modal, setModal] = useState<Modal>(null);
-  const isStandalone = useSyncExternalStore(subscribeStandalone, getStandaloneSnapshot, () => false);
 
   const demoCfg = useMemo(() => makeDemoCfg('icetag', 'plaza', { cinematic: true, quality: save.quality }), [save.quality]);
   const stars = totalStars(save);
@@ -602,17 +573,6 @@ export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; 
             </div>
           </button>
           <div className="flex gap-1.5 shrink-0 items-center">
-            {!isStandalone && (
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('trigger-pwa-install'))}
-                className="rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-sky-950 font-black text-xs px-3 h-8 flex items-center gap-1.5 shadow-lg shadow-amber-500/25 press active:scale-95 transition hover:brightness-105 border border-white/60"
-                title="웹앱으로 설치하기"
-              >
-                <Download size={13} className="stroke-[3]" />
-                <span>앱 설치</span>
-              </button>
-            )}
             <div className="glass-dark rounded-full flex items-center gap-1.5 pl-1.5 pr-3 h-8 text-white text-sm font-bold tabular-nums"><Coin />{save.coins}</div>
             <div className="glass-dark rounded-full flex items-center gap-1.5 pl-2 pr-3 h-8 text-white text-sm font-bold tabular-nums"><Star size={15} className="text-amber-300" fill="currentColor" strokeWidth={0} />{stars}</div>
           </div>
