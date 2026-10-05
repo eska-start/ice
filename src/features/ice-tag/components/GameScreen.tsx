@@ -77,8 +77,9 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
 
   // online matches keep running while the menu is open
   useEffect(() => { if (gameRef.current) gameRef.current.paused = paused && !online; }, [paused, online]);
-  // PC 조작 방식 변경을 게임에 즉시 반영 (게임 재생성 없음)
-  useEffect(() => { gameRef.current?.setControlMode(pcControl); }, [pcControl]);
+  // PC 조작 방식 변경을 게임에 즉시 반영 (모바일은 항상 키패드(keyboard)로 고정)
+  const effectiveControl: PcControl = vp.touch ? 'keyboard' : pcControl;
+  useEffect(() => { gameRef.current?.setControlMode(effectiveControl); }, [effectiveControl]);
   const g = () => gameRef.current;
   const lost = online && room && room.status !== 'open' && hud?.phase !== 'final';
 
@@ -108,14 +109,12 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
           {hud.phase !== 'final' && (
             <>
               {vp.touch ? (
-                pcControl === 'keyboard' && (
-                  <Joystick onMove={(x, y) => g()?.setJoystick(x, y)} disabled={hud.status !== 'alive'} ui={vp.ui} />
-                )
+                <Joystick onMove={(x, y) => g()?.setJoystick(x, y)} disabled={hud.status !== 'alive'} ui={vp.ui} />
               ) : (
                 <KeyLegend hud={hud} control={pcControl} />
               )}
               <BagIndicator hud={hud} />
-              <ActionButtons hud={hud} ui={vp.touch ? vp.ui : 0.82} keys={!vp.touch} control={pcControl} onPrimary={() => g()?.pressPrimary()} onDash={() => g()?.pressDash()} onItem={() => g()?.pressItem()} onSpectate={() => g()?.pressSpectateNext()} />
+              <ActionButtons hud={hud} ui={vp.touch ? vp.ui : 0.82} keys={!vp.touch} control={effectiveControl} onPrimary={() => g()?.pressPrimary()} onDash={() => g()?.pressDash()} onItem={() => g()?.pressItem()} onSpectate={() => g()?.pressSpectateNext()} />
             </>
           )}
           <FinalResult
@@ -132,7 +131,7 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
           <div className="pop-in w-full max-w-xs short:max-w-md bg-white rounded-3xl p-5 short:p-4 text-center shadow-2xl">
             <div className="text-slate-900 font-bold text-2xl short:text-xl mb-1">{online ? '메뉴' : '일시정지'}</div>
             {online && <div className="text-xs text-slate-400 mb-3 short:mb-1">온라인 게임은 멈추지 않아요</div>}
-            {onControlChange && (
+            {!vp.touch && onControlChange && (
               <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-2xl mb-2">
                 {(['keyboard', 'mouse'] as const).map((m) => (
                   <button
@@ -140,7 +139,7 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
                     onClick={() => onControlChange(m)}
                     className={`h-10 rounded-xl text-[13px] font-bold transition ${pcControl === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
                   >
-                    {m === 'keyboard' ? (vp.touch ? '🕹️ 키패드 이동' : '⌨️ 키보드') : (vp.touch ? '👆 터치 이동' : '🖱️ 마우스')}
+                    {m === 'keyboard' ? '⌨️ 키보드' : '🖱️ 마우스'}
                   </button>
                 ))}
               </div>

@@ -435,30 +435,32 @@ function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; se
         <button className="w-full flex items-center justify-between px-4 h-14" onClick={onHowto}>
           <span className="text-[15px] font-semibold text-slate-800">게임 방법</span><ChevronRight size={18} className="text-slate-400" />
         </button>
-        <div className="w-full px-4 py-3">
-          <div className="text-[15px] font-semibold text-slate-800">
-            {vp.touch ? '모바일 조작 방식' : 'PC 조작 방식'}
+        {!vp.touch && (
+          <div className="w-full px-4 py-3">
+            <div className="text-[15px] font-semibold text-slate-800">
+              PC 조작 방식
+            </div>
+            <div className="text-xs text-slate-400 mb-2">
+              키보드: WASD 이동 · 마우스: 우클릭 이동 + 커서 조준
+            </div>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-2xl">
+              {(['keyboard', 'mouse'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSave({ ...save, pcControl: m })}
+                  className={`h-10 rounded-xl text-[13px] font-bold transition ${save.pcControl === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                >
+                  {m === 'keyboard' ? '⌨️ 키보드' : '🖱️ 마우스'}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="text-xs text-slate-400 mb-2">
-            {vp.touch ? '키패드 이동: 가상 조이스틱으로 조종 · 터치 이동: 바닥을 터치한 곳으로 이동' : '키보드: WASD 이동 · 마우스: 우클릭 이동 + 커서 조준'}
-          </div>
-          <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-2xl">
-            {(['keyboard', 'mouse'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setSave({ ...save, pcControl: m })}
-                className={`h-10 rounded-xl text-[13px] font-bold transition ${save.pcControl === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                {m === 'keyboard' ? (vp.touch ? '🕹️ 키패드 이동' : '⌨️ 키보드') : (vp.touch ? '👆 터치 이동' : '🖱️ 마우스')}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
         <CouponBox save={save} setSave={setSave} />
       </div>
       <button className="w-full mt-3 h-11 rounded-2xl text-sm font-semibold text-rose-500 bg-rose-50" onClick={() => { if (confirm('저장 데이터를 초기화할까요?')) { localStorage.clear(); location.reload(); } }}>데이터 초기화</button>
       <div className="text-[11px] text-slate-400 mt-3 text-center">
-        {vp.touch ? '모바일 · 키패드/터치 이동 · 땡은 자동 구조' : 'PC · WASD 이동 · Space/J 얼음·던지기 · Shift/L 대시 · E/I 아이템 · 땡은 터치 자동 · Tab/N 관전 · Esc/P 메뉴'}
+        {vp.touch ? '모바일 · 키패드 이동 · 땡은 자동 구조' : 'PC · WASD 이동 · Space/J 얼음·던지기 · Shift/L 대시 · E/I 아이템 · 땡은 터치 자동 · Tab/N 관전 · Esc/P 메뉴'}
       </div>
     </ModalFrame>
   );
