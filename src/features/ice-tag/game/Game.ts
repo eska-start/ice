@@ -516,6 +516,8 @@ export class Game {
       window.addEventListener('mouseup', this.onMouseUp);
       this.renderer.domElement.addEventListener('mousedown', this.onMouseDown);
       this.renderer.domElement.addEventListener('contextmenu', this.onContextMenu);
+      this.renderer.domElement.addEventListener('touchstart', this.onTouchStart, { passive: true });
+      this.renderer.domElement.addEventListener('touchmove', this.onTouchMove, { passive: true });
     }
     this.lastTime = performance.now();
     this.raf = requestAnimationFrame(this.loop);
@@ -533,6 +535,8 @@ export class Game {
     window.removeEventListener('mouseup', this.onMouseUp);
     this.renderer.domElement.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.domElement.removeEventListener('contextmenu', this.onContextMenu);
+    this.renderer.domElement.removeEventListener('touchstart', this.onTouchStart);
+    this.renderer.domElement.removeEventListener('touchmove', this.onTouchMove);
     this.post?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -608,6 +612,43 @@ export class Game {
   onMouseMove = (e: MouseEvent) => { this.trackMouse(e); };
   onMouseUp = (_e: MouseEvent) => { /* click-to-move persists until the target is reached */ };
   onContextMenu = (e: Event) => { e.preventDefault(); };
+
+  onTouchStart = (e: TouchEvent) => {
+    if (this.demo || this.paused || this.controlMode !== 'mouse' || e.touches.length === 0) return;
+    const t = e.touches[0];
+    this.mouseClient.x = t.clientX;
+    this.mouseClient.y = t.clientY;
+    const r = this.container.getBoundingClientRect();
+    this.mouseOnScreen = t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom;
+    this.updateMouseAim();
+    if (this.mouseAimValid) {
+      if (this.mode === 'ojaemi') {
+        this.pressPrimary();
+      } else {
+        this.mouseMoveTarget.copy(this.mouseAim);
+        this.mouseMoveTargetValid = true;
+        this.mouseMoveMarker.position.set(this.mouseAim.x, 0.055, this.mouseAim.z);
+        this.mouseMoveMarker.visible = true;
+        this.fx.ring(tmpV.set(this.mouseAim.x, 0.06, this.mouseAim.z), 0x7df0aa, 1.3, 0.28);
+      }
+    }
+  };
+
+  onTouchMove = (e: TouchEvent) => {
+    if (this.demo || this.paused || this.controlMode !== 'mouse' || e.touches.length === 0) return;
+    const t = e.touches[0];
+    this.mouseClient.x = t.clientX;
+    this.mouseClient.y = t.clientY;
+    const r = this.container.getBoundingClientRect();
+    this.mouseOnScreen = t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom;
+    this.updateMouseAim();
+    if (this.mouseAimValid && this.mode !== 'ojaemi') {
+      this.mouseMoveTarget.copy(this.mouseAim);
+      this.mouseMoveTargetValid = true;
+      this.mouseMoveMarker.position.set(this.mouseAim.x, 0.055, this.mouseAim.z);
+      this.mouseMoveMarker.visible = true;
+    }
+  };
 
   trackMouse(e: MouseEvent) {
     this.mouseClient.x = e.clientX;
@@ -2289,7 +2330,14 @@ export class Game {
       const edge = Math.max(Math.abs(ex) / 15, Math.abs(ez) / 21);
       // never run past the tagger
       const passT = (ex - tg.pos.x) * ax + (ez - tg.pos.z) * az < 0 ? -2 : 0;
-      const score = away * 3 + run * 0.32 + open * 0.7 - edge * 1.4 + passT
+      // 도망자 뭉침 방지: 다른 살아있는 도망자들이 있는 쪽으로 몰리면 감점 (각자 다른 도주로로 분산)
+      let crowd = 0;
+      for (const other of this.runners) {
+        if (other === c || other.status !== 'alive') continue;
+        const d = Math.hypot(ex - other.pos.x, ez - other.pos.z);
+        if (d < 5.0) crowd += (5.0 - d) * 1.5;
+      }
+      const score = away * 3 + run * 0.32 + open * 0.7 - edge * 1.4 + passT - crowd * 1.8
         + (x * c.ai.fleeDir.x + z * c.ai.fleeDir.z) * 0.5 + Math.random() * 0.35;
       if (score > bs) { bs = score; best.set(x, 0, z); }
     }
@@ -2309,11 +2357,18 @@ export class Game {
   /** open, reachable roaming destination (prefers far from the tagger) */
   wanderPoint(c: Char, tg: Char | null): THREE.Vector3 {
     let best: THREE.Vector3 | null = null, bs = -Infinity;
-    for (let i = 0; i < 10; i++) {
-      const p = this.nav.randomOpenPoint(c.pos.x, c.pos.z, 5, 10, 1.25, 6);
+    for (let i = 0; i < 12; i++) {
+      const p = this.nav.randomOpenPoint(c.pos.x, c.pos.z, 6, 13, 1.25, 6);
       if (!p) continue;
       const dtg = tg ? Math.hypot(p.x - tg.pos.x, p.y - tg.pos.z) : 10;
-      const s = Math.min(dtg, 16) + Math.min(this.nav.clearance(p.x, p.y), 3) + Math.random() * 3;
+      // 다른 살아있는 도망자들이 있는 구역을 피해 맵 전체로 넓게 분산
+      let crowd = 0;
+      for (const other of this.runners) {
+        if (other === c || other.status !== 'alive') continue;
+        const d = Math.hypot(p.x - other.pos.x, p.y - other.pos.z);
+        if (d < 6.0) crowd += (6.0 - d) * 1.6;
+      }
+      const s = Math.min(dtg, 16) + Math.min(this.nav.clearance(p.x, p.y), 3) - crowd * 2.0 + Math.random() * 3;
       if (s > bs) { bs = s; best = new THREE.Vector3(p.x, 0, p.y); }
     }
     if (best) return best;
@@ -2428,8 +2483,32 @@ export class Game {
         }
       }
     }
-    if (ai.dodgeT > 0) { c.move.copy(ai.fleeDir); return; }
-    this.moveToGoal(c);
+    if (ai.dodgeT > 0) {
+      c.move.copy(ai.fleeDir);
+    } else {
+      this.moveToGoal(c);
+    }
+
+    // 도망자 군집 분산 (Separation): 다른 살아있는 도망자와 너무 뭉쳐 다니지 않도록 반발력 부여
+    if (c.move.lengthSq() > 0.01) {
+      let sepX = 0, sepZ = 0;
+      for (const other of this.runners) {
+        if (other === c || other.status !== 'alive') continue;
+        const ox = c.pos.x - other.pos.x;
+        const oz = c.pos.z - other.pos.z;
+        const dist = Math.hypot(ox, oz);
+        if (dist > 0.05 && dist < 3.8) {
+          const push = (3.8 - dist) / 3.8;
+          sepX += (ox / dist) * push * 0.85;
+          sepZ += (oz / dist) * push * 0.85;
+        }
+      }
+      if (sepX !== 0 || sepZ !== 0) {
+        c.move.x += sepX;
+        c.move.z += sepZ;
+        if (c.move.lengthSq() > 1) c.move.normalize();
+      }
+    }
   }
 
   aiTagger(c: Char) {

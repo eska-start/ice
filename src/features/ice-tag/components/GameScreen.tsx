@@ -107,7 +107,13 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
           <RoundEnd hud={hud} />
           {hud.phase !== 'final' && (
             <>
-              {vp.touch ? <Joystick onMove={(x, y) => g()?.setJoystick(x, y)} disabled={hud.status !== 'alive'} ui={vp.ui} /> : <KeyLegend hud={hud} control={pcControl} />}
+              {vp.touch ? (
+                pcControl === 'keyboard' && (
+                  <Joystick onMove={(x, y) => g()?.setJoystick(x, y)} disabled={hud.status !== 'alive'} ui={vp.ui} />
+                )
+              ) : (
+                <KeyLegend hud={hud} control={pcControl} />
+              )}
               <BagIndicator hud={hud} />
               <ActionButtons hud={hud} ui={vp.touch ? vp.ui : 0.82} keys={!vp.touch} control={pcControl} onPrimary={() => g()?.pressPrimary()} onDash={() => g()?.pressDash()} onItem={() => g()?.pressItem()} onSpectate={() => g()?.pressSpectateNext()} />
             </>
@@ -126,7 +132,7 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
           <div className="pop-in w-full max-w-xs short:max-w-md bg-white rounded-3xl p-5 short:p-4 text-center shadow-2xl">
             <div className="text-slate-900 font-bold text-2xl short:text-xl mb-1">{online ? '메뉴' : '일시정지'}</div>
             {online && <div className="text-xs text-slate-400 mb-3 short:mb-1">온라인 게임은 멈추지 않아요</div>}
-            {!vp.touch && onControlChange && (
+            {onControlChange && (
               <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-2xl mb-2">
                 {(['keyboard', 'mouse'] as const).map((m) => (
                   <button
@@ -134,7 +140,7 @@ export function GameScreen({ cfg, sfx, room, onMenu, onRestart, onFinal, onNextS
                     onClick={() => onControlChange(m)}
                     className={`h-10 rounded-xl text-[13px] font-bold transition ${pcControl === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
                   >
-                    {m === 'keyboard' ? '⌨️ 키보드' : '🖱️ 마우스'}
+                    {m === 'keyboard' ? (vp.touch ? '🕹️ 키패드 이동' : '⌨️ 키보드') : (vp.touch ? '👆 터치 이동' : '🖱️ 마우스')}
                   </button>
                 ))}
               </div>

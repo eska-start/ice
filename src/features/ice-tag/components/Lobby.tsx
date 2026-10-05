@@ -96,7 +96,7 @@ function Entry({ init, save, joinCode, onHost, onJoin, onBack }: { init: LobbyIn
             <div className="text-slate-900 font-bold">방 만들기</div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {(['icetag', 'ojaemi', 'police'] as Mode[]).map((m) => (
+            {(['icetag', 'ojaemi'] as Mode[]).map((m) => (
               <button key={m} onClick={() => setMode(m)} className={`rounded-2xl p-3 text-left press transition ${mode === m ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'}`}>
                 <div className="font-bold">{MODE_INFO[m].name}</div>
                 <div className={`text-xs ${mode === m ? 'text-white/60' : 'text-slate-400'}`}>{MODE_INFO[m].sub}</div>
@@ -206,7 +206,7 @@ function WaitingRoom({ room, onLeave, onStart }: { room: NetRoom; onLeave: () =>
             {!room.isHost && <span className="text-[11px] text-slate-400">방장만 변경할 수 있어요</span>}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {(['icetag', 'ojaemi', 'police'] as Mode[]).map((m) => (
+            {(['icetag', 'ojaemi'] as Mode[]).map((m) => (
               <button key={m} disabled={!room.isHost} onClick={() => room.setOptions({ mode: m })} className={`rounded-2xl px-3 py-2 text-left transition ${s.mode === m ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500'} ${room.isHost ? 'press' : ''}`}>
                 <div className="text-sm font-bold">{MODE_INFO[m].name}</div>
                 <div className={`text-[11px] ${s.mode === m ? 'text-white/60' : 'text-slate-400'}`}>{m === 'ojaemi' && s.mode === 'ojaemi' ? TEAM_SIZE_INFO[s.teamSize].label : MODE_INFO[m].sub}</div>

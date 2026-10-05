@@ -4,6 +4,7 @@ import { Preview3D } from './Preview3D';
 import { CharacterViewer } from './CharacterViewer';
 import { CostumeIcon, Portrait } from './Portrait';
 import { makeDemoCfg } from '../game/config';
+import { useViewport } from '../hooks/useViewport';
 import type { SaveData } from '../game/save';
 import { redeemCoupon, totalStars } from '../game/save';
 import { COSTUMES, COSTUME_MAP, SLOT_INFO, costumesOf } from '../game/costumes';
@@ -421,6 +422,7 @@ function CouponBox({ save, setSave }: { save: SaveData; setSave: (s: SaveData) =
 }
 
 function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; setSave: (s: SaveData) => void; onClose: () => void; onHowto: () => void }) {
+  const vp = useViewport();
   return (
     <ModalFrame title="설정" onClose={onClose}>
       <div className="bg-slate-50 rounded-2xl divide-y divide-slate-200/70">
@@ -434,8 +436,12 @@ function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; se
           <span className="text-[15px] font-semibold text-slate-800">게임 방법</span><ChevronRight size={18} className="text-slate-400" />
         </button>
         <div className="w-full px-4 py-3">
-          <div className="text-[15px] font-semibold text-slate-800">PC 조작 방식</div>
-          <div className="text-xs text-slate-400 mb-2">키보드: WASD 이동 · 마우스: 우클릭 이동 + 커서 조준</div>
+          <div className="text-[15px] font-semibold text-slate-800">
+            {vp.touch ? '모바일 조작 방식' : 'PC 조작 방식'}
+          </div>
+          <div className="text-xs text-slate-400 mb-2">
+            {vp.touch ? '키패드 이동: 가상 조이스틱으로 조종 · 터치 이동: 바닥을 터치한 곳으로 이동' : '키보드: WASD 이동 · 마우스: 우클릭 이동 + 커서 조준'}
+          </div>
           <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-2xl">
             {(['keyboard', 'mouse'] as const).map((m) => (
               <button
@@ -443,7 +449,7 @@ function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; se
                 onClick={() => setSave({ ...save, pcControl: m })}
                 className={`h-10 rounded-xl text-[13px] font-bold transition ${save.pcControl === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
               >
-                {m === 'keyboard' ? '⌨️ 키보드' : '🖱️ 마우스'}
+                {m === 'keyboard' ? (vp.touch ? '🕹️ 키패드 이동' : '⌨️ 키보드') : (vp.touch ? '👆 터치 이동' : '🖱️ 마우스')}
               </button>
             ))}
           </div>
@@ -451,7 +457,9 @@ function SettingsModal({ save, setSave, onClose, onHowto }: { save: SaveData; se
         <CouponBox save={save} setSave={setSave} />
       </div>
       <button className="w-full mt-3 h-11 rounded-2xl text-sm font-semibold text-rose-500 bg-rose-50" onClick={() => { if (confirm('저장 데이터를 초기화할까요?')) { localStorage.clear(); location.reload(); } }}>데이터 초기화</button>
-      <div className="text-[11px] text-slate-400 mt-3 text-center">PC · WASD 이동 · Space/J 얼음·던지기 · Shift/L 대시 · E/I 아이템 · 땡은 터치 자동 · Tab/N 관전 · Esc/P 메뉴</div>
+      <div className="text-[11px] text-slate-400 mt-3 text-center">
+        {vp.touch ? '모바일 · 키패드/터치 이동 · 땡은 자동 구조' : 'PC · WASD 이동 · Space/J 얼음·던지기 · Shift/L 대시 · E/I 아이템 · 땡은 터치 자동 · Tab/N 관전 · Esc/P 메뉴'}
+      </div>
     </ModalFrame>
   );
 }
@@ -480,16 +488,6 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
           <ul className="list-disc pl-4 space-y-1">
             <li>오재미를 주워(1개) 바라보는 방향으로 던져요. 포물선으로 날아가요.</li>
             <li>명중하면 팀 점수 +1. 장애물과 대시로 피할 수 있어요. 동점이면 연장전!</li>
-          </ul>
-        </section>
-        <section className="bg-blue-50 rounded-2xl p-4">
-          <div className="text-blue-900 font-bold text-[15px] mb-1.5">숨바꼭질 <span className="text-blue-500 font-semibold text-xs ml-1">1 VS 5 · 120초</span></div>
-          <ul className="list-disc pl-4 space-y-1">
-            <li>시작할 때 <b className="text-slate-800">술래 1명 / 숨는 팀 5명</b>으로 나뉘고, 나머지는 AI가 맡아요.</li>
-            <li><b className="text-slate-800">숨기</b>를 누르면 주변의 비슷한 사물로 변신해 술래를 속일 수 있어요.</li>
-            <li>변신한 상태로 움직일 수도 있고, <b className="text-slate-800">숨기</b>를 다시 누르면 변신을 풀 수 있어요.</li>
-            <li>숨는 팀은 <b className="text-slate-800">120초 동안 살아남으면 승리</b>, 술래는 숨은 플레이어를 모두 찾아내면 승리해요.</li>
-            <li><b className="text-slate-800">Space / J</b>로 숨기 · 변신 해제를 사용해요. 같은 자리에 오래 있으면 사물이 흔들려 의심 단서가 생겨요.</li>
           </ul>
         </section>
         <section className="bg-indigo-50 rounded-2xl p-4">
@@ -610,7 +608,7 @@ export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; 
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-white text-[22px] font-extrabold leading-tight tracking-tight">게임 시작</span>
-                <span className="block text-white/85 text-xs font-medium [@media(max-height:620px)]:hidden">얼음땡 · 오재미 · 숨바꼭질</span>
+                <span className="block text-white/85 text-xs font-medium [@media(max-height:620px)]:hidden">얼음땡 · 오재미</span>
               </span>
               <ChevronRight size={22} className="text-white/90 shrink-0" strokeWidth={2.6} />
             </button>
