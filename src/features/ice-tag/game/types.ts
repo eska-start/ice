@@ -50,7 +50,7 @@ export const ALL_MAPS: MapId[] = ['plaza', 'beach', 'snow', 'night'];
 export const MODE_INFO: Record<Mode, { name: string; sub: string; desc: string; color: string }> = {
   icetag: { name: '얼음땡', sub: '1 VS 5', desc: '술래에게서 도망치고, 위험하면 얼음! 친구가 땡으로 구해줘요', color: '#3b9dff' },
   ojaemi: { name: '오재미', sub: '1:1 · 2:2 · 3:3', desc: '오재미를 주워 던지고 피하는 대결! 1대1 · 2대2 · 3대3', color: '#ff7a3b' },
-  police: { name: '숨바꼭질', sub: '1 VS 5', desc: '숨기 버튼으로 주변 사물로 변신해 술래를 피해 살아남는 프롭 헌트', color: '#8b7cff' },
+  police: { name: '숨바꼭질', sub: '1 VS 5', desc: '술래가 눈 감은 사이 사물로 변신해 숨고, 들키면 기지로 달려가 세이프!', color: '#8b7cff' },
 };
 
 export interface StageDef {
@@ -142,6 +142,8 @@ export interface PlayerStat extends Stats {
   status: PStatus;
   hasBag: boolean;
   stunned: boolean;
+  /** 숨바꼭질: 기지에 도착해 세이프 */
+  safe?: boolean;
 }
 
 export interface RoundResult {
@@ -160,8 +162,8 @@ export interface Marker {
   animal: Animal;
   frozen: boolean;
   tagger: boolean;
-  /** 숨바꼭질: 화면 밖 감옥 /  안내 화살표 */
-  kind?: 'jail' | 'exit';
+  /** 숨바꼭질: 화면 밖 기지 안내 화살표 (jail / exit 는 구버전 호환) */
+  kind?: 'jail' | 'exit' | 'base';
 }
 
 export interface FinalSummary {
@@ -232,8 +234,42 @@ export interface HudState {
   stageProgress: string | null;
   final: FinalSummary | null;
   police?: PoliceHud | null;
+  hide?: HideHud | null;
   hideTransformed: boolean;
   hideCanTransform: boolean;
+}
+
+/**
+ * 숨바꼭질 HUD 정보
+ * 진행: 숨는 시간(술래 눈 가림) → 찾는 시간 → 발견되면 기지로 달려가 세이프
+ */
+export interface HideHud {
+  /** 숨는 시간 남은 초 (0이면 찾는 중) */
+  prep: number;
+  /** 아직 들키지 않고 숨어 있는 인원 */
+  hidden: number;
+  /** 들켜서 도망 중인 인원 */
+  found: number;
+  /** 기지 도착(세이프) 인원 */
+  safe: number;
+  /** 술래에게 잡힌 인원 */
+  caught: number;
+  total: number;
+  /** 술래가 이기려면 잡아야 하는 인원 */
+  need: number;
+  /** 술래 '찾았다!' 쿨타임 (0..1) */
+  inspectCd: number;
+  /** 숨는 사람 다시 숨기 쿨타임 (0..1) */
+  reHideCd: number;
+  /** 내가 지금 숨어 있음 */
+  meHidden: boolean;
+  /** 내가 세이프 */
+  meSafe: boolean;
+  /** 내가 이번 라운드에 한 번이라도 숨었는지 (기지 세이프 자격) */
+  canSafe: boolean;
+  /** 못 찾겠다 꾀꼬리 (마지막 30초 힌트) */
+  hint: boolean;
+  taggerName: string;
 }
 
 export interface Toast {

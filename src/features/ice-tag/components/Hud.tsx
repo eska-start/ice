@@ -10,8 +10,9 @@ function Avatar({ p, tagger, police = false }: { p: PlayerStat; tagger: boolean;
   return (
     <div className={`relative w-9 h-9 rounded-xl flex items-center justify-center text-xl border-2 ${p.isPlayer ? 'border-yellow-300' : 'border-white/80'} ${bg} ${p.status === 'out' ? 'grayscale opacity-40' : ''}`} title={p.name}>
       <Portrait animal={p.animal} className="absolute inset-0 w-full h-full rounded-[10px]" />
-      {p.status === 'frozen' && <span className="absolute -top-2 -right-1 text-xs">{police ? '🔒' : '❄️'}</span>}
-      {p.status === 'out' && <span className="absolute -top-2 -right-1 text-xs">{police ? '🚪' : '✖️'}</span>}
+      {p.safe && <span className="absolute -top-2 -right-1 text-xs">🚩</span>}
+      {!p.safe && p.status === 'frozen' && <span className="absolute -top-2 -right-1 text-xs">{police ? '🫥' : '❄️'}</span>}
+      {!p.safe && p.status === 'out' && <span className="absolute -top-2 -right-1 text-xs">✖️</span>}
       {p.stunned && p.status === 'alive' && <span className="absolute -top-2 -right-1 text-xs">💫</span>}
       {tagger && <span className="absolute -bottom-2 text-[9px] font-black bg-red-600 text-white px-1 rounded">술래</span>}
       {police && p.role === 'tagger' && <span className="absolute -bottom-2 text-[9px] font-black bg-blue-600 text-white px-1 rounded">술래</span>}
@@ -67,12 +68,23 @@ export function TopBar({ hud, onPause }: { hud: HudState; onPause: () => void })
           </div>
         </div>
       )}
-      {police && hud.police && (
-        <div className="flex justify-center mt-1.5">
-          <div className={`flex items-center gap-3 rounded-full px-3 py-1 border-2 border-white/80 shadow ${hud.role === 'tagger' ? 'bg-blue-700/85' : 'bg-red-600/85'}`}>
-            <span className="text-white font-black text-xs">{hud.role === 'tagger' ? '👹 나는 술래' : '🫥 나는 숨는 사람'}</span>
-            <span className="text-white/90 font-bold text-xs">🫥 숨는 사람 · 👹 술래</span>
-          </div>
+      {police && hud.hide && (
+        <div className="flex flex-col items-center justify-center mt-1.5 gap-1">
+          {hud.hide.prep > 0 ? (
+            <div className="flex items-center gap-2 rounded-full px-4 py-1 border-2 border-white/90 shadow bg-gradient-to-r from-amber-500 to-orange-600 animate-pulse">
+              <span className="text-white font-black text-xs">🙈 술래 눈 감는 중:</span>
+              <span className="text-yellow-200 font-black text-sm tabular-nums">{hud.hide.prep}초 (사물로 변신해 숨으세요!)</span>
+            </div>
+          ) : (
+            <div className={`flex items-center gap-3 rounded-full px-3 py-1 border-2 border-white/80 shadow ${hud.role === 'tagger' ? 'bg-blue-700/85' : 'bg-purple-700/85'}`}>
+              <span className="text-white font-black text-xs">
+                {hud.role === 'tagger' ? '👹 나는 술래' : hud.hide.meSafe ? '🚩 세이프 완료!' : hud.hide.meHidden ? '🫥 변신 숨김 중' : '🏃 들킴! 기지로 뛰어!'}
+              </span>
+              <span className="text-white/90 font-bold text-xs">
+                🫥 {hud.hide.hidden} · 👀 {hud.hide.found} · 🚩 {hud.hide.safe} · ✖️ {hud.hide.caught}
+              </span>
+            </div>
+          )}
         </div>
       )}
       {hud.stageGoal && (
@@ -105,9 +117,9 @@ export function EdgeMarkers({ hud }: { hud: HudState }) {
     <div className="absolute inset-0 z-20 pointer-events-none">
       {hud.markers.map((m, i) => (
         <div key={i} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}>
-          <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-base border-2 border-white shadow ${m.kind === 'jail' ? 'bg-amber-500/95 animate-pulse' : m.kind === 'exit' ? 'bg-emerald-500/95 animate-pulse' : m.tagger ? 'bg-red-600/90 animate-pulse' : m.frozen ? 'bg-sky-300/90' : m.team === 'red' ? 'bg-red-500/85' : 'bg-blue-500/85'}`}>
-            {m.kind === 'jail' ? '🔒' : m.kind === 'exit' ? '🚪' : m.frozen ? '❄️' : m.tagger ? '👹' : ANIMAL_INFO[m.animal].emoji}
-            <div className="absolute w-0 h-0" style={{ left: '50%', top: '50%', transform: `rotate(${m.angle}rad) translateX(22px) translateY(-6px)`, transformOrigin: '0 6px', borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: `9px solid ${m.kind === 'jail' ? '#f59e0b' : m.kind === 'exit' ? '#10b981' : m.tagger ? '#ef4444' : m.frozen ? '#7dd3fc' : m.team === 'red' ? '#ef4444' : '#3b82f6'}` }} />
+          <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-base border-2 border-white shadow ${m.kind === 'base' ? 'bg-emerald-500/95 animate-bounce' : m.kind === 'jail' ? 'bg-amber-500/95 animate-pulse' : m.kind === 'exit' ? 'bg-emerald-500/95 animate-pulse' : m.tagger ? 'bg-red-600/90 animate-pulse' : m.frozen ? 'bg-sky-300/90' : m.team === 'red' ? 'bg-red-500/85' : 'bg-blue-500/85'}`}>
+            {m.kind === 'base' ? '🚩' : m.kind === 'jail' ? '🔒' : m.kind === 'exit' ? '🚪' : m.frozen ? '❄️' : m.tagger ? '👹' : ANIMAL_INFO[m.animal].emoji}
+            <div className="absolute w-0 h-0" style={{ left: '50%', top: '50%', transform: `rotate(${m.angle}rad) translateX(22px) translateY(-6px)`, transformOrigin: '0 6px', borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: `9px solid ${m.kind === 'base' ? '#10b981' : m.kind === 'jail' ? '#f59e0b' : m.kind === 'exit' ? '#10b981' : m.tagger ? '#ef4444' : m.frozen ? '#7dd3fc' : m.team === 'red' ? '#ef4444' : '#3b82f6'}` }} />
           </div>
         </div>
       ))}
@@ -131,17 +143,18 @@ export function StatusBanner({ hud }: { hud: HudState }) {
     else if (hud.role === 'runner' && hud.danger) { text = '⚠️ 술래 접근! 도망치거나 얼음!'; cls = 'bg-red-500/90'; }
     else if (hud.role === 'tagger') { text = `🏃 도망팀 ${hud.aliveCount}명 남음 — 잡아라!`; cls = 'bg-red-600/70'; }
   } else if (hud.mode === 'police') {
-    const pl = hud.police;
-    if (hud.status === 'frozen') { text = '🫥 변신이 풀렸어요! 술래를 피해 다시 숨으세요'; cls = 'bg-amber-500/90'; }
-    else if (hud.stunned) { text = '💫 휘청! 잠시 행동 불능'; cls = 'bg-red-500/85'; }
-    else if (hud.role === 'tagger' && pl && pl.holdIn > 0) { text = `👹 술래 준비 중... ${pl.holdIn}초`; cls = 'bg-blue-700/75'; }
-    else if (hud.role === 'tagger') { text = pl && pl.jailed > 0 ? `👹 숨는 사람 ${pl.free}명 남음 · 주변을 살펴보세요!` : `👹 숨는 사람 ${pl ? pl.free : 0}명 남음 — 찾아보세요!`; cls = 'bg-blue-700/75'; }
-    else if (pl && pl.holdIn > 0) { text = `🫥 지금 숨으세요! 술래가 곧 움직입니다`; cls = 'bg-slate-800/80'; }
-    else if (pl?.rescuing) { text = `🔓 구출 중... ${Math.round(pl.rescue * 100)}%`; cls = 'bg-emerald-500/90'; }
-    else if (hud.danger) { text = '⚠️ 술래 접근! 변신하거나 도망치세요!'; cls = 'bg-red-500/90'; }
-    else if (pl && pl.jailed > 0) { text = '🫥 주변 사물로 변신해 술래를 피하세요'; cls = 'bg-yellow-400/95 text-slate-900'; }
-    else if (pl?.exitsOpen) { text = '🫥 변신 상태를 유지하며 끝까지 살아남으세요'; cls = 'bg-emerald-500/90'; }
-    else { text = `🫥 술래를 피해 살아남으세요`; cls = 'bg-slate-800/80'; }
+    const hd = hud.hide;
+    if (hud.status === 'out') { text = '✖️ 술래에게 잡혔어요! 탈락...'; cls = 'bg-red-600/85'; }
+    else if (hd?.meSafe) { text = '🎉 기지 도착 완료! 세이프!'; cls = 'bg-emerald-500/90'; }
+    else if (hd?.hint) { text = '🐤 못 찾겠다 꾀꼬리! 숨은 사물들이 들썩입니다!'; cls = 'bg-yellow-400 text-slate-900 animate-pulse'; }
+    else if (hd && hd.prep > 0) {
+      if (hud.role === 'tagger') { text = `🙈 눈 감고 12초 기다리는 중... (${hd.prep}초)`; cls = 'bg-blue-700/85'; }
+      else { text = `🫥 지금 사물로 변신해 숨으세요! (${hd.prep}초)`; cls = 'bg-purple-600/90 animate-pulse'; }
+    } else if (hud.stunned) { text = '💫 헛짚음 경직! 잠시 행동 불능'; cls = 'bg-amber-500/85 text-slate-900'; }
+    else if (hud.role === 'tagger') { text = '🔍 사물에 다가가 "찾았다!"로 조사하세요 (헛짚으면 경직)'; cls = 'bg-blue-700/85'; }
+    else if (hud.role === 'runner' && hd?.meHidden) { text = '🫥 변신 숨김 중! 가만히 있으면 들키지 않아요'; cls = 'bg-indigo-600/85'; }
+    else if (hud.role === 'runner' && hud.danger) { text = '⚠️ 술래 접근! 기지로 전력 질주해 세이프하세요!'; cls = 'bg-red-500/95 animate-pulse'; }
+    else { text = '🏃 기지로 달려가 세이프하거나 끝까지 숨으세요!'; cls = 'bg-purple-700/85'; }
   } else {
     if (hud.stunned) { text = '💫 휘청! 잠시 행동 불능'; cls = 'bg-red-500/85'; }
 
@@ -201,8 +214,8 @@ export function RoundEnd({ hud }: { hud: HudState }) {
     if (r.winner === 'tagger') { title = '모두 잡았다!'; sub = r.reason === 'all_frozen' ? '남은 도망팀이 모두 얼음 상태! 술래 승리' : '도망팀 전원 탈락! 술래 승리'; color = 'from-red-400 to-red-600'; }
     else { title = '시간 초과!'; sub = `도망팀 ${r.survivors}명 생존! 도망팀 승리`; color = 'from-sky-400 to-blue-600'; }
   } else if (hud.mode === 'police') {
-    if (r.winner === 'tagger') { title = '👹 술래 승리!'; sub = '숨는 사람을 모두 찾아냈어요!'; color = 'from-blue-400 to-blue-700'; }
-    else { title = '🫥 숨는 사람 승리!'; sub = '제한 시간 동안 끝까지 살아남았어요!'; color = 'from-red-400 to-red-600'; }
+    if (r.winner === 'tagger') { title = '👹 술래 승리!'; sub = '숨어 있던 도망자들을 모두 찾았어요!'; color = 'from-blue-400 to-blue-700'; }
+    else { title = '🎉 도망자 승리!'; sub = r.reason === 'all_safe' ? '도망자들이 기지 세이프에 성공했어요!' : '시간 종료까지 술래를 피해 살아남았어요!'; color = 'from-purple-400 to-indigo-600'; }
   } else {
     title = r.winner === 'red' ? 'RED 승리!' : 'BLUE 승리!';
     sub = r.reason === 'golden' ? '연장전 골든골!' : `${hud.red} : ${hud.blue}`;
@@ -237,7 +250,7 @@ export function FinalResult({ hud, onRestart, onMenu, onNextStage, restartLabel 
   const grad = f.draw ? 'from-slate-400 to-slate-600' : f.playerWon ? 'from-amber-300 to-orange-500' : 'from-slate-500 to-slate-700';
   const stage = f.stage ? STAGES[f.stage - 1] : null;
   const pr = f.roundResults[0];
-  const policeLine = pr?.winner === 'tagger' ? '👹 술래 승리 · 숨는 사람 전원 발견' : '🫥 숨는 사람 승리 · 시간 종료';
+  const policeLine = pr?.winner === 'tagger' ? '👹 술래 승리 · 도망자 전원 발견' : '🎉 도망자 승리 · 기지 세이프 및 생존';
   return (
     // portrait: bottom sheet · landscape: side panel on the right so the 3D victory pose stays visible on the left
     <div
@@ -272,7 +285,7 @@ export function FinalResult({ hud, onRestart, onMenu, onNextStage, restartLabel 
             <thead>
               <tr className="text-slate-500">
                 <th className="text-left">선수</th>
-                {ice ? (<><th>승</th><th>탈락</th><th>얼음</th><th>땡</th><th>잡음</th><th>생존</th><th>템</th><th>대시</th></>) : police ? (<><th>역할</th><th>체포</th><th>구출</th><th>대시</th><th>템</th></>) : (<><th>명중</th><th>피격</th><th>투척</th><th>회피</th><th>대시</th><th>템</th></>)}
+                {ice ? (<><th>승</th><th>탈락</th><th>얼음</th><th>땡</th><th>잡음</th><th>생존</th><th>템</th><th>대시</th></>) : police ? (<><th>역할</th><th>발견</th><th>결과</th><th>대시</th><th>템</th></>) : (<><th>명중</th><th>피격</th><th>투척</th><th>회피</th><th>대시</th><th>템</th></>)}
               </tr>
             </thead>
             <tbody>
@@ -280,7 +293,7 @@ export function FinalResult({ hud, onRestart, onMenu, onNextStage, restartLabel 
                 <tr key={i} className={`${p.isPlayer ? 'bg-yellow-100' : ''} font-bold`}>
                   <td className={`text-left py-0.5 ${ice ? 'text-slate-700' : p.team === 'red' ? 'text-red-500' : 'text-blue-500'}`}>{ANIMAL_INFO[p.animal].emoji} {p.name}</td>
                   {ice ? (<><td className="text-center">{p.roundsWon}</td><td className="text-center">{p.outs}</td><td className="text-center">{p.freezes}</td><td className="text-center">{p.thaws}</td><td className="text-center">{p.tags}</td><td className="text-center">{Math.round(p.survive)}s</td><td className="text-center">{p.items}</td><td className="text-center">{p.dashes}</td></>)
-                    : police ? (<><td className="text-center">{p.role === 'tagger' ? '술래' : '숨는 사람'}</td><td className="text-center">{p.tags}</td><td className="text-center">{p.thaws}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>) : (<><td className="text-center">{p.hits}</td><td className="text-center">{p.hitsTaken}</td><td className="text-center">{p.throws}</td><td className="text-center">{p.dodges}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>)}
+                    : police ? (<><td className="text-center">{p.role === 'tagger' ? '술래' : '도망자'}</td><td className="text-center">{p.tags}</td><td className="text-center">{p.role === 'tagger' ? '-' : p.safe ? '🚩세이프' : p.status === 'out' ? '✖️탈락' : '생존'}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>) : (<><td className="text-center">{p.hits}</td><td className="text-center">{p.hitsTaken}</td><td className="text-center">{p.throws}</td><td className="text-center">{p.dodges}</td><td className="text-center">{p.dashes}</td><td className="text-center">{p.items}</td></>)}
                 </tr>
               ))}
             </tbody>

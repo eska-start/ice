@@ -12,7 +12,7 @@ import type { NetMsg } from '../net/net';
 import type { Sfx } from './sfx';
 import { STAGES } from './types';
 import { buildPoliceField, COP_DASH_CD, COP_HOLD, POLICE_TIME, RESCUE_R, RESCUE_TIME, ROBBER_SPEED, type PoliceField } from './police';
-import type { Difficulty, FinalSummary, GameConfig, HudState, ItemType, Marker, Mode, PcControl, Phase, PlayerStat, PoliceHud, PStatus, Role, RoundResult, StageDef, Stats, Team, TeamSize } from './types';
+import type { Difficulty, FinalSummary, GameConfig, HideHud, HudState, ItemType, Marker, Mode, PcControl, Phase, PlayerStat, PoliceHud, PStatus, Role, RoundResult, StageDef, Stats, Team, TeamSize } from './types';
 
 const ROUND_TIME = 90;
 const OVERTIME = 30;
@@ -35,13 +35,132 @@ const TAG_DIST = 1.15;
 const THAW_DIST = 1.18;
 const FREEZE_CD = 1.2;
 const MOTO_TIME = 3;
-const HIDE_TIME = 120;
+// ---- 숨바꼭질 (숨기 → 찾기 → 기지 세이프)
+/** 찾는 시간 (숨는 시간 이후) */
+const HIDE_TIME = 100;
+/** 숨는 시간: 술래는 기지에서 눈을 가리고 움직일 수 없다 */
+const HIDE_PREP = 12;
 const HIDE_STILL_HINT = 6;
-const HIDE_MOVE_SPEED = 3.9;
+/** 사물로 변신한 채 움직일 때 속도 (움직이면 흙먼지가 나서 티가 난다) */
+const HIDE_PROP_SPEED = 2.4;
+/** 기지 반경: 숨었던 사람이 여기에 닿으면 세이프 */
+const BASE_R = 1.7;
+/** 술래 '찾았다!' 조사 범위 / 쿨타임 / 헛짚음 경직 */
+const INSPECT_R = 2.4;
+const INSPECT_CD = 1.4;
+const INSPECT_MISS_STUN = 0.9;
+/** 들킨 뒤 다시 숨을 수 있을 때까지 */
+const REHIDE_CD = 5;
+/** 술래가 기지 주변(4m)에 이 시간 이상 머무르면 '기지 지키기 금지' 페널티 */
+const BASE_CAMP_LIMIT = 4;
+/** 남은 시간이 이 값 이하면 '못 찾겠다 꾀꼬리' 힌트 (숨은 사물이 주기적으로 들썩) */
+const KKOEKKORI_T = 30;
 const ITEMS: ItemType[] = ['moto', 'ufo', 'banana', 'missile', 'jelly'];
 const ITEM_NAMES: Record<ItemType, string> = { moto: '🏍️ 오토바이', ufo: '🛸 UFO', banana: '🍌 바나나', missile: '🚀 미사일', jelly: '🟢 젤리슬라임' };
 
 type StunType = 'hit' | 'slip' | 'missile' | 'ufo' | 'bump' | null;
+
+/**
+ * ===================== AI 행동 규칙 (난이도별) =====================
+ * - 플레이어의 '상대' AI만 난이도를 따른다. 같은 편 AI는 항상 '보통' 규칙으로 움직여
+ *   쉬움 = 상대가 확실히 약하고, 어려움 = 상대가 확실히 강하게 체감되도록 한다.
+ */
+
+/** 얼음땡 규칙 */
+interface IceTune {
+  // ---- 술래
+  /** AI 술래 이동속도 배율 */
+  tagSpeed: number;
+  /** 판단 주기 (초) — 짧을수록 반응이 빠르다 */
+  think: number;
+  /** 도망자의 이동을 앞질러 예측하는 정도 (0..1) */
+  lead: number;
+  /** 퇴로 차단 / 구석 몰이 정도 (0..1) */
+  cutoff: number;
+  /** 추격 대시 사용 확률 · 사용 거리 */
+  dashProb: number; dashRange: number;
+  /** 판단마다 잠깐 멍때릴 확률 */
+  hesitate: number;
+  /** 구조하러 오는 도망자를 얼음 옆에서 노리는 '매복' 최대 시간 (0 = 매복 안 함) · 재사용 대기 */
+  ambushMax: number; ambushCd: number;
+  /** 얼음 옆에 머물 수 있는 최대 시간 — 넘기면 강제로 다른 대상을 찾아 떠난다 (얼음 지키기 방지) */
+  campLimit: number;
+  /** 거리가 줄지 않는 대상을 포기하고 바꾸는 시간 */
+  giveUp: number;
+  /** 아이템을 상황에 맞게 쓰는가 (false = 아무 때나) */
+  smartItems: boolean;
+  // ---- 도망자
+  /** AI 도망자 이동속도 배율 */
+  runSpeed: number;
+  /** 술래 접근 인지 반응 시간 */
+  react: number;
+  /** 얼음 판단 거리 / 즉시 얼음 거리 / 초당 얼음 결정률 */
+  freezeDist: number; freezeClose: number; freezeRate: number;
+  /** 위기 때 얼음을 '깜빡'할 확률 (쉬움일수록 늦게 얼음해서 잡힌다) */
+  freezeMiss: number;
+  /** 얼음보다 대시 회피를 먼저 쓰는가 (막힌 곳이 아니면 대시로 빠져나감) */
+  dashFirst: boolean;
+  dangerDist: number; fleeDist: number;
+  /** 술래가 얼음 동료에게서 이만큼 떨어져 있어야 구조하러 간다 */
+  rescueSafe: number;
+  /** 동료끼리 구조 대상을 나눠 맡는가 / 술래 반대편으로 돌아서 접근하는가 */
+  rescueCoop: boolean;
+  /** 술래가 얼음 동료를 지키면 일부러 다가가 미끼가 될 확률 */
+  decoy: number;
+}
+
+/** 오재미 규칙 */
+interface OjTune {
+  /** 날아오는 공 인지 시간 */
+  react: number;
+  /** 조준 오차 (m) */
+  aimErr: number;
+  /** 투척 간격 */
+  throwMin: number; throwMax: number;
+  /** 회피 성공 확률 / 회피 때 대시 사용 확률 */
+  dodgeProb: number; dashDodge: number;
+  /** 이동 예측 (0..1) — 1이면 정확한 요격 계산 */
+  lead: number;
+  /** 선호 교전 거리 */
+  dist: number;
+  think: number;
+  /** AI 이동속도 배율 */
+  speed: number;
+  /** 같은 팀이 한 명을 집중 공격 */
+  focus: boolean;
+  /** 무적 시간이 끝나는 순간에 맞도록 미리 던짐 */
+  punish: boolean;
+  /** 판단마다 멍때릴 확률 */
+  hesitate: number;
+}
+
+/** 숨바꼭질 규칙 */
+interface HideTune {
+  // ---- 술래
+  /** AI 술래 이동속도 배율 */
+  seekSpeed: number;
+  think: number;
+  /** 시야 거리 (이 안에서 시야가 트이면 수상한 사물을 알아챔) */
+  seeDist: number;
+  /** 원래 없던 사물을 기억해내는 능력 (판단마다 확률) */
+  memory: number;
+  /** 움직이는 사물을 알아채는 확률 */
+  motionSense: number;
+  /** 아무 사물이나 괜히 조사하는 확률 (헛짚음 → 경직 페널티) */
+  falseInspect: number;
+  /** 들킨 사람의 기지 경로를 막는 정도 (0..1) */
+  cutoff: number;
+  dashProb: number;
+  // ---- 숨는 사람
+  /** 숨을 곳 고르는 실력 (0 = 가까운 곳, 1 = 기지에서 멀고 흩어진 좋은 자리) */
+  spotSmart: number;
+  /** 술래가 이 거리 안에서 다가오면 겁먹고 튀어나갈 수 있음 */
+  panicDist: number;
+  /** 판단마다 겁먹고 튀어나갈 확률 */
+  panic: number;
+  /** 술래가 기지에서 멀어지면 몰래 기지로 달려갈 확률 (판단마다) */
+  sneak: number;
+}
 
 interface Diff {
   react: number; aimErr: number; throwMin: number; throwMax: number; dodgeProb: number; lead: number; think: number; dist: number;
@@ -50,11 +169,38 @@ interface Diff {
   freezeRate: number;
   /** inside this distance the runner freezes instantly (no dice roll) */
   freezeClose: number;
+  ice: IceTune;
+  oj: OjTune;
+  hide: HideTune;
 }
 const DIFF: Record<Difficulty, Diff> = {
-  easy: { react: 0.4, aimErr: 1.6, throwMin: 1.7, throwMax: 2.7, dodgeProb: 0.4, lead: 0.45, think: 0.3, dist: 10.5, freezeDist: 3.0, dangerDist: 4.5, fleeDist: 8, rescueSafe: 5.5, tagLead: 0.35, tagDashProb: 0.35, hesitate: 0.25, freezeRate: 5, freezeClose: 1.9 },
-  normal: { react: 0.25, aimErr: 1.0, throwMin: 1.15, throwMax: 1.9, dodgeProb: 0.62, lead: 0.75, think: 0.22, dist: 9.5, freezeDist: 3.5, dangerDist: 5.5, fleeDist: 9.5, rescueSafe: 7, tagLead: 0.6, tagDashProb: 0.6, hesitate: 0.1, freezeRate: 7, freezeClose: 2.0 },
-  hard: { react: 0.15, aimErr: 0.62, throwMin: 0.8, throwMax: 1.35, dodgeProb: 0.8, lead: 0.92, think: 0.16, dist: 8.5, freezeDist: 3.8, dangerDist: 6.5, fleeDist: 11, rescueSafe: 8.5, tagLead: 0.8, tagDashProb: 0.85, hesitate: 0.03, freezeRate: 9, freezeClose: 2.1 },
+  easy: {
+    react: 0.4, aimErr: 1.6, throwMin: 1.7, throwMax: 2.7, dodgeProb: 0.4, lead: 0.45, think: 0.3, dist: 10.5, freezeDist: 3.0, dangerDist: 4.5, fleeDist: 8, rescueSafe: 5.5, tagLead: 0.35, tagDashProb: 0.35, hesitate: 0.25, freezeRate: 5, freezeClose: 1.9,
+    ice: {
+      tagSpeed: 0.9, think: 0.38, lead: 0.2, cutoff: 0, dashProb: 0.25, dashRange: 4.5, hesitate: 0.22, ambushMax: 0, ambushCd: 99, campLimit: 1.0, giveUp: 3.5, smartItems: false,
+      runSpeed: 0.94, react: 0.45, freezeDist: 2.5, freezeClose: 1.45, freezeRate: 3.5, freezeMiss: 0.35, dashFirst: false, dangerDist: 3.6, fleeDist: 7, rescueSafe: 4.5, rescueCoop: false, decoy: 0,
+    },
+    oj: { react: 0.55, aimErr: 2.3, throwMin: 2.2, throwMax: 3.4, dodgeProb: 0.18, dashDodge: 0.15, lead: 0.15, dist: 11.5, think: 0.42, speed: 0.88, focus: false, punish: false, hesitate: 0.25 },
+    hide: { seekSpeed: 0.9, think: 0.55, seeDist: 6, memory: 0.06, motionSense: 0.35, falseInspect: 0.3, cutoff: 0, dashProb: 0.2, spotSmart: 0.15, panicDist: 5, panic: 0.35, sneak: 0.03 },
+  },
+  normal: {
+    react: 0.25, aimErr: 1.0, throwMin: 1.15, throwMax: 1.9, dodgeProb: 0.62, lead: 0.75, think: 0.22, dist: 9.5, freezeDist: 3.5, dangerDist: 5.5, fleeDist: 9.5, rescueSafe: 7, tagLead: 0.6, tagDashProb: 0.6, hesitate: 0.1, freezeRate: 7, freezeClose: 2.0,
+    ice: {
+      tagSpeed: 1.0, think: 0.24, lead: 0.6, cutoff: 0.35, dashProb: 0.55, dashRange: 6, hesitate: 0.08, ambushMax: 2.2, ambushCd: 7, campLimit: 1.6, giveUp: 4.5, smartItems: true,
+      runSpeed: 1.0, react: 0.25, freezeDist: 3.3, freezeClose: 1.9, freezeRate: 7, freezeMiss: 0.1, dashFirst: false, dangerDist: 5.5, fleeDist: 9.5, rescueSafe: 7, rescueCoop: true, decoy: 0.15,
+    },
+    oj: { react: 0.28, aimErr: 1.05, throwMin: 1.2, throwMax: 2.0, dodgeProb: 0.55, dashDodge: 0.6, lead: 0.7, dist: 9.5, think: 0.24, speed: 1.0, focus: false, punish: true, hesitate: 0.06 },
+    hide: { seekSpeed: 0.97, think: 0.35, seeDist: 8, memory: 0.22, motionSense: 0.7, falseInspect: 0.12, cutoff: 0.5, dashProb: 0.45, spotSmart: 0.55, panicDist: 3.6, panic: 0.18, sneak: 0.08 },
+  },
+  hard: {
+    react: 0.15, aimErr: 0.62, throwMin: 0.8, throwMax: 1.35, dodgeProb: 0.8, lead: 0.92, think: 0.16, dist: 8.5, freezeDist: 3.8, dangerDist: 6.5, fleeDist: 11, rescueSafe: 8.5, tagLead: 0.8, tagDashProb: 0.85, hesitate: 0.03, freezeRate: 9, freezeClose: 2.1,
+    ice: {
+      tagSpeed: 1.04, think: 0.15, lead: 0.9, cutoff: 0.75, dashProb: 0.85, dashRange: 6.8, hesitate: 0.02, ambushMax: 3.5, ambushCd: 6, campLimit: 2.4, giveUp: 5.5, smartItems: true,
+      runSpeed: 1.03, react: 0.14, freezeDist: 3.6, freezeClose: 2.05, freezeRate: 10, freezeMiss: 0.02, dashFirst: true, dangerDist: 6.5, fleeDist: 11, rescueSafe: 8.5, rescueCoop: true, decoy: 0.35,
+    },
+    oj: { react: 0.12, aimErr: 0.32, throwMin: 0.65, throwMax: 1.05, dodgeProb: 0.9, dashDodge: 0.9, lead: 1.0, dist: 8.0, think: 0.14, speed: 1.06, focus: true, punish: true, hesitate: 0 },
+    hide: { seekSpeed: 1.03, think: 0.22, seeDist: 10, memory: 0.45, motionSense: 0.95, falseInspect: 0.03, cutoff: 0.9, dashProb: 0.75, spotSmart: 0.95, panicDist: 2.6, panic: 0.08, sneak: 0.14 },
+  },
 };
 
 interface AIState {
@@ -65,6 +211,19 @@ interface AIState {
   path: THREE.Vector2[]; pathGoal: THREE.Vector3; pathT: number;
   /** stuck detection */
   lastPos: THREE.Vector3; stuckT: number; unstickT: number; unstickDir: THREE.Vector3; stuckCount: number;
+  // ---- 얼음땡 술래 상태 머신 (hunt = 추격 / ambush = 구조자 매복)
+  mode: 'hunt' | 'ambush';
+  guardT: number; guardCd: number; campT: number; leaveT: number; leaveFrom: Char | null;
+  chaseT: number; lastTargetD: number;
+  /** 이번 위기에 얼음을 '깜빡'했는지 (위기마다 한 번 굴림) */
+  missRolled: boolean; missFreeze: boolean;
+  // ---- 숨바꼭질
+  /** 숨는 사람: 목표 숨을 자리 */
+  spot: THREE.Vector3 | null;
+  /** 술래: 의심 대상 (숨은 사람 사물 또는 그냥 사물) */
+  suspect: { x: number; z: number; char: Char | null; prop: HideProp | null } | null;
+  /** 술래: 마지막으로 본 들킨 사람 위치 */
+  lastSeen: THREE.Vector3 | null; lastSeenT: number;
 }
 interface RoundStats { thaws: number; items: number; out: boolean }
 
@@ -94,6 +253,10 @@ interface Char {
   hideT: number;
   hideStillT: number;
   hideMission: number;
+  hideSafe: boolean;
+  hideEverHidden: boolean;
+  hideDiscovered: boolean;
+  reHideCd: number;
 }
 
 interface Projectile { mesh: THREE.Object3D; pos: THREE.Vector3; vel: THREE.Vector3; owner: Char; age: number; alive: boolean; nearC: Char | null; nearD: number; hit: boolean }
@@ -142,10 +305,15 @@ export class Game {
   container: HTMLElement; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; world: WorldData; fx: Effects; ro: ResizeObserver;
   nav!: NavGrid;
   /** 숨바꼭질: 감옥 · 탈출구 구조물과 규칙 상태 (다른 모드에서는 사용하지 않음) */
-  police: PoliceField | null = null;
-  policeStarts: { cops: THREE.Vector2[]; robbers: THREE.Vector2[] } = { cops: [], robbers: [] };
-  policeT = 0; rescueT = 0; exitOpen = false; rescuer: Char | null = null; policeSkillCd = 0; policeFlashT = 0;
-  policeLabels: THREE.Sprite[] = []; exitLabels: THREE.Sprite[] = [];
+  /** 숨바꼭질: 기지 (세이프 구역) */
+  hideBase = new THREE.Vector3(0, 0, 0);
+  hideBaseMesh: THREE.Group | null = null;
+  hidePrepT = 0;
+  hideInspectCd = 0;
+  hideBaseCampT = 0;
+  hideKkoekkori = false;
+  hideKkoekkoriT = 0;
+  hideLabels: THREE.Sprite[] = [];
   /** 숨바꼭질 전용 랜덤 사물과 변신 상태 */
   hideProps: HideProp[] = [];
   hideMissionTotal = 0;
@@ -260,7 +428,7 @@ export class Game {
       }
     }
     this.fx = new Effects(this.scene);
-    if (this.police) this.initPolice();
+    if (this.mode === 'police') this.initHideBase();
 
     cfg.slots.forEach((s, i) => {
       const isPlayer = i === cfg.playerIndex && !this.demo;
@@ -280,8 +448,10 @@ export class Game {
         st: emptyStats(), rs: { thaws: 0, items: 0, out: false }, label: null,
         remote: cfg.net === 'host' && s.human && i !== cfg.playerIndex, netPos: new THREE.Vector3(), netFacing: 0, hasNet: false,
         hideProp: null, hideT: 0, hideStillT: 0, hideMission: 0,
+        hideSafe: false, hideEverHidden: false, hideDiscovered: false, reHideCd: 0,
         ai: { think: Math.random() * 0.3, goal: null, target: null, throwCd: rand(0.6, 1.4), strafe: Math.random() < 0.5 ? 1 : -1, seen: new WeakSet(), itemCd: 0, dodgeT: 0, dodgeDir: new THREE.Vector3(), steerSide: 1, fleeDir: new THREE.Vector3(1, 0, 0), rescue: null, panic: rand(0.85, 1.25), hesitate: 0, wanderT: 0, alarm: 0,
-          path: [], pathGoal: new THREE.Vector3(1e9, 0, 1e9), pathT: 0, lastPos: new THREE.Vector3(), stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), stuckCount: 0 },
+          path: [], pathGoal: new THREE.Vector3(1e9, 0, 1e9), pathT: 0, lastPos: new THREE.Vector3(), stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), stuckCount: 0,
+          mode: 'hunt', guardT: 0, guardCd: 0, campT: 0, leaveT: 0, leaveFrom: null, chaseT: 0, lastTargetD: Infinity, missRolled: false, missFreeze: false, spot: null, suspect: null, lastSeen: null, lastSeenT: 0 },
       };
       this.chars.push(c);
     });
@@ -767,6 +937,7 @@ export class Game {
   actPrimary(c: Char) {
     if (this.mode === 'police') {
       if (c.role === 'runner') this.toggleHide(c);
+      else if (c.role === 'tagger') this.actInspect(c);
       return;
     }
     if (this.mode === 'ojaemi') { this.actThrow(c); return; }
@@ -940,24 +1111,6 @@ export class Game {
     }
   }
 
-  // ------------------------------------------------------------ 숨바꼭질
-  /** 술래(role 'tagger' · 파란팀) / 숨는 사람(role 'runner' · 빨간팀)을 무작위로 나누고 시작 위치를 돌려준다. */
-  assignPoliceRoles(): Map<number, THREE.Vector2> {
-    const copN = Math.max(1, Math.floor(this.chars.length / 3));
-    const cops = new Set(shuffle(this.chars.map((c) => c.id)).slice(0, copN));
-    const copSpots = shuffle(this.policeStarts.cops);
-    const robSpots = shuffle(this.policeStarts.robbers);
-    const out = new Map<number, THREE.Vector2>();
-    let ci = 0, ri = 0;
-    for (const c of this.chars) {
-      const cop = cops.has(c.id);
-      c.role = cop ? 'tagger' : 'runner';
-      c.team = cop ? 'blue' : 'red';
-      c.m.setTeam(c.team);
-      out.set(c.id, cop ? copSpots[ci++ % copSpots.length] : robSpots[ri++ % robSpots.length]);
-    }
-    return out;
-  }
 
   // ------------------------------------------------------------ 숨바꼭질
   makeHideProp(kind: HideProp['kind'], x: number, z: number): HideProp {
@@ -1019,21 +1172,35 @@ export class Game {
     const ids = shuffle(this.chars.map((c) => c.id));
     const taggerId = ids[0];
     const out = new Map<number, THREE.Vector2>();
-    const spots = shuffle(this.world.spawnPoints);
-    let si = 0;
+    let ri = 0;
     for (const c of this.chars) {
       c.role = c.id === taggerId ? 'tagger' : 'runner';
       c.team = c.role === 'tagger' ? 'red' : 'blue';
       c.m.setTeam(c.team);
-      const p = spots[si++ % spots.length];
-      out.set(c.id, p);
+      if (c.role === 'tagger') {
+        out.set(c.id, new THREE.Vector2(this.hideBase.x, this.hideBase.z));
+      } else {
+        const ang = (ri / 5) * Math.PI * 2 + rand(-0.3, 0.3);
+        const dist = rand(6, 11);
+        const sx = this.hideBase.x + Math.sin(ang) * dist;
+        const sz = this.hideBase.z + Math.cos(ang) * dist;
+        out.set(c.id, new THREE.Vector2(sx, sz));
+        ri++;
+      }
     }
     return out;
   }
 
   resetHideState() {
+    this.hidePrepT = HIDE_PREP;
+    this.hideInspectCd = 0;
+    this.hideBaseCampT = 0;
+    this.hideKkoekkori = false;
+    this.hideKkoekkoriT = 0;
     for (const c of this.chars) {
-      c.hideProp = null; c.hideT = 0; c.hideStillT = 0; c.hideMission = 0;
+      if (c.hideProp) { this.scene.remove(c.hideProp.mesh); c.hideProp = null; }
+      c.hideT = 0; c.hideStillT = 0; c.hideMission = 0;
+      c.hideSafe = false; c.hideEverHidden = false; c.hideDiscovered = false; c.reHideCd = 0;
       c.m.root.visible = true;
     }
   }
@@ -1043,20 +1210,79 @@ export class Game {
       .sort((a, b) => Math.hypot(a.x - c.pos.x, a.z - c.pos.z) - Math.hypot(b.x - c.pos.x, b.z - c.pos.z));
   }
 
+  getDifficulty(c: Char): Diff {
+    if (!this.demo && this.player) {
+      if (this.mode === 'icetag') {
+        const isOpponent = (c.role === 'tagger') !== (this.player.role === 'tagger');
+        return isOpponent ? this.diff : DIFF.normal;
+      } else if (this.mode === 'police') {
+        const isOpponent = (c.role === 'tagger') !== (this.player.role === 'tagger');
+        return isOpponent ? this.diff : DIFF.normal;
+      } else if (this.mode === 'ojaemi') {
+        return c.team !== this.player.team ? this.diff : DIFF.normal;
+      }
+    }
+    return this.diff;
+  }
+
+  initHideBase() {
+    if (this.hideBaseMesh) { this.scene.remove(this.hideBaseMesh); this.hideBaseMesh = null; }
+    for (const l of this.hideLabels) this.fx.removeLabel(l);
+    this.hideLabels = [];
+
+    this.hideBase.set(0, 0, 2);
+    const g = new THREE.Group();
+
+    // 기지 바닥 테두리 링
+    const ringGeo = new THREE.RingGeometry(BASE_R - 0.28, BASE_R, 36);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x5dff9e, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.04;
+    g.add(ring);
+
+    // 기지 바닥 원판
+    const diskGeo = new THREE.CircleGeometry(BASE_R - 0.28, 36);
+    const diskMat = new THREE.MeshBasicMaterial({ color: 0x24a854, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+    const disk = new THREE.Mesh(diskGeo, diskMat);
+    disk.rotation.x = -Math.PI / 2;
+    disk.position.y = 0.035;
+    g.add(disk);
+
+    // 중앙 전봇대 / 기지 깃대
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.2, 10), lam(0x8b5a2b));
+    pole.position.y = 1.1;
+    g.add(pole);
+
+    const banner = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.45, 0.08), lam(0xffe14a));
+    banner.position.set(0.35, 1.9, 0);
+    g.add(banner);
+
+    g.position.copy(this.hideBase);
+    this.scene.add(g);
+    this.hideBaseMesh = g;
+
+    const label = this.fx.label('🏠 기지 (SAFE)', '#5dff9e', 1.1);
+    label.position.set(this.hideBase.x, 2.7, this.hideBase.z);
+    this.hideLabels = [label];
+  }
+
   toggleHide(c: Char) {
-    if (this.mode !== 'police' || c.role !== 'runner' || !this.canAct(c)) return;
+    if (this.mode !== 'police' || c.role !== 'runner' || !this.canAct(c) || c.hideSafe) return;
     if (c.hideProp) {
-      c.hideProp.mesh.visible = false;
+      this.scene.remove(c.hideProp.mesh);
       c.hideProp = null; c.hideT = 0; c.hideStillT = 0;
       c.m.root.visible = true;
       this.toastFor(c, '🐾 변신 해제! 다시 움직여요', '#d9d3ff');
       return;
     }
+    if (c.reHideCd > 0) {
+      this.toastFor(c, `⏳ 들킨 후 다시 숨기까지 ${Math.ceil(c.reHideCd)}초!`, '#ffb3b3');
+      return;
+    }
     const nearby = this.nearestHideProps(c, 5.5);
     if (!nearby.length) { this.toastFor(c, '🔍 주변에 숨을 만한 사물이 없어요', '#d9d3ff'); return; }
     const chosen = pick(nearby.slice(0, Math.min(4, nearby.length)));
-    // 실제 맵에 존재하는 사물을 그대로 복제해 변신한다. 새로 만든 비슷한 모양이 아니라
-    // 바로 옆에 있는 기존 오브젝트와 같은 종류/외형을 사용한다.
     const proxyMesh = chosen.mesh.clone(true);
     proxyMesh.position.set(c.pos.x, 0, c.pos.z);
     proxyMesh.rotation.copy(chosen.mesh.rotation);
@@ -1066,262 +1292,353 @@ export class Game {
     this.scene.add(proxyMesh);
     const proxy: HideProp = { kind: chosen.kind, mesh: proxyMesh, x: c.pos.x, z: c.pos.z };
     c.hideProp = proxy; c.hideT = 0; c.hideStillT = 0;
+    c.hideEverHidden = true;
     c.m.root.visible = false;
     c.hideMission = Math.min(this.hideMissionTotal, c.hideMission + 1);
     const name = chosen.kind === 'pot' ? '화분' : chosen.kind === 'crate' ? '상자' : chosen.kind === 'rock' ? '바위' : '나무';
     this.toastFor(c, '🫥 ' + name + '으로 변신!', '#d9d3ff');
   }
 
-  updateHide(dt: number) {
-    if (this.phase !== 'playing') return;
-    const tagger = this.tagger;
-    for (const c of this.runners) {
-      if (!c.hideProp || c.status !== 'alive') continue;
-      c.hideT += dt;
-      if (c.vel.length() > 0.15) c.hideStillT = 0; else c.hideStillT += dt;
-      c.hideProp.x = c.pos.x; c.hideProp.z = c.pos.z; c.hideProp.mesh.position.set(c.pos.x, 0, c.pos.z);
-      const warn = Math.max(0, Math.min(1, (c.hideStillT - HIDE_STILL_HINT) / 4));
-      const wobble = warn * 0.14;
-      c.hideProp.mesh.rotation.z = Math.sin(this.elapsed * (5 + warn * 7) + c.id) * wobble;
-      c.hideProp.mesh.rotation.x = Math.cos(this.elapsed * (4 + warn * 6) + c.id) * wobble * 0.7;
-      c.hideProp.mesh.position.y = Math.abs(Math.sin(this.elapsed * (5 + warn * 6) + c.id)) * warn * 0.05;
-      if (tagger && tagger.status === 'alive' && Math.hypot(tagger.pos.x - c.pos.x, tagger.pos.z - c.pos.z) < 1.05) {
-        c.hideProp.mesh.visible = false; c.hideProp = null; c.m.root.visible = true; c.hideStillT = 0;
-        c.grace = 0.35; c.st.tags++;
-        this.fx.emit('spark', tmpV.set(c.pos.x, 1, c.pos.z), 14, 4, 0.5, 3, 1);
-        this.fx.floatText('발각!', '#ff9a9a', tmpV.set(c.pos.x, 2.5, c.pos.z), 1.4);
-        this.toastFor(c, '👀 들켰어요! 변신이 풀렸어요', '#ff9a9a');
-      }
+  actInspect(c: Char) {
+    if (this.mode !== 'police' || c.role !== 'tagger' || !this.canAct(c)) return;
+    if (this.hidePrepT > 0) {
+      this.toastFor(c, `🙈 아직 숨는 시간이에요! (${Math.ceil(this.hidePrepT)}초)`, '#ffcc66');
+      return;
     }
+    if (this.hideInspectCd > 0) {
+      this.toastFor(c, '🔍 조사 준비 중...', '#c8d8ff');
+      return;
+    }
+    this.hideInspectCd = INSPECT_CD;
+    c.tagAnim = 0.35;
+    this.fx.ring(tmpV.set(c.pos.x, 0.08, c.pos.z), 0x7fd0ff, 4, 0.3);
+
+    // 1) 범위(INSPECT_R) 내 숨은 러너가 있는지 조사
+    let foundRunner: Char | null = null;
+    let minD = INSPECT_R;
+    for (const r of this.runners) {
+      if (r.status !== 'alive' || !r.hideProp || r.hideSafe) continue;
+      const d = r.pos.distanceTo(c.pos);
+      if (d < minD) { minD = d; foundRunner = r; }
+    }
+
+    if (foundRunner) {
+      const r = foundRunner;
+      if (r.hideProp) {
+        this.scene.remove(r.hideProp.mesh);
+        r.hideProp = null;
+      }
+      r.m.root.visible = true;
+      r.hideDiscovered = true;
+      r.reHideCd = REHIDE_CD;
+      r.hideStillT = 0;
+      r.grace = 0.6;
+      this.fx.emit('star', tmpV.set(r.pos.x, 1.8, r.pos.z), 16, 5, 0.8, 4, 1.3);
+      this.fx.emit('spark', tmpV.set(r.pos.x, 1.2, r.pos.z), 20, 5, 0.6, 2, 1.1);
+      this.fx.floatText('들켰다!', '#ff6b6b', tmpV.set(r.pos.x, 2.9, r.pos.z), 1.6);
+      if (this.near(r)) this.sfx.tag();
+      this.toastFor(c, `🎯 찾았다! ${r.name} 발견! 기지로 달려가기 전에 잡아라!`, '#ffe14a');
+      this.toastFor(r, `👀 들켰다! 기지로 달려가 세이프하세요!`, '#ff6b6b');
+      r.ai.goal = this.hideBase.clone();
+      r.ai.think = 0;
+      return;
+    }
+
+    // 2) 숨은 러너는 없는데 실제 일반 사물을 조사한 경우 -> 헛짚음 경직 페널티!
+    const nearbyProp = this.hideProps.find((p) => Math.hypot(p.x - c.pos.x, p.z - c.pos.z) < INSPECT_R);
+    if (nearbyProp) {
+      this.applyStun(c, 'hit', INSPECT_MISS_STUN);
+      this.fx.floatText('헛짚었다! 😅', '#ffd83b', tmpV.set(c.pos.x, 2.6, c.pos.z), 1.3);
+      if (this.near(c)) this.sfx.slip();
+      this.toastFor(c, '💨 헛짚었다! 진짜 사물이에요! (경직)', '#ffd83b');
+      return;
+    }
+
+    this.toastFor(c, '🔍 주변에 사물이 없어요!', '#c8d8ff');
   }
 
-  hideTagCheck() {
+  updateHide(dt: number) {
+    if (this.phase !== 'playing') return;
     const tg = this.tagger;
-    if (!tg || tg.status !== 'alive') return;
+
+    // 1) 숨는 시간 (카운트다운)
+    if (this.hidePrepT > 0) {
+      this.hidePrepT = Math.max(0, this.hidePrepT - dt);
+      if (tg && tg.status === 'alive') {
+        tg.pos.copy(this.hideBase);
+        tg.vel.set(0, 0, 0);
+        tg.move.set(0, 0, 0);
+        tg.facing = Math.PI;
+      }
+      if (this.hidePrepT <= 0) {
+        if (!this.demo) {
+          this.sfx.whistle();
+          this.sfx.start();
+        }
+        this.toast('🔔 술래 출동! 꼭꼭 숨어라 머리카락 보인다!', '#ff6b6b');
+      }
+      return;
+    }
+
+    // 2) 찾는 시간 진행
+    this.hideInspectCd = Math.max(0, this.hideInspectCd - dt);
     for (const r of this.runners) {
-      if (r.status !== 'alive' || r.hideProp || r.grace > 0) continue;
-      const d = Math.hypot(r.pos.x - tg.pos.x, r.pos.z - tg.pos.z);
-      if (d < TAG_DIST) {
-        this.eliminate(r, tg);
-        tg.tagAnim = 0.45;
-        tg.facing = Math.atan2(r.pos.x - tg.pos.x, r.pos.z - tg.pos.z);
+      if (r.reHideCd > 0) r.reHideCd = Math.max(0, r.reHideCd - dt);
+    }
+
+    // 기지 지키기(캠핑) 방지
+    if (tg && tg.status === 'alive') {
+      const distToBase = tg.pos.distanceTo(this.hideBase);
+      if (distToBase < 4.5) {
+        this.hideBaseCampT += dt;
+        if (this.hideBaseCampT >= BASE_CAMP_LIMIT) {
+          this.toastFor(tg, '⚠️ 기지 지키기 금지! 나가서 찾으세요!', '#ff8a8a');
+        }
+      } else {
+        this.hideBaseCampT = Math.max(0, this.hideBaseCampT - dt * 2);
       }
     }
-    if (this.runners.every((r) => r.status === 'out')) this.endRound('tagger', 'all_found');
+
+    // 못 찾겠다 꾀꼬리 힌트 (남은 시간 30초 이하)
+    if (this.time <= KKOEKKORI_T) {
+      if (!this.hideKkoekkori) {
+        this.hideKkoekkori = true;
+        this.toast('🐤 못 찾겠다 꾀꼬리! 숨은 사물들이 들썩거립니다!', '#ffe14a');
+      }
+      this.hideKkoekkoriT += dt;
+      if (this.hideKkoekkoriT >= 3.5) {
+        this.hideKkoekkoriT = 0;
+        for (const r of this.runners) {
+          if (r.status === 'alive' && r.hideProp && !r.hideSafe) {
+            this.fx.floatText('꾀꼬리!', '#ffe14a', tmpV.set(r.pos.x, 2.2, r.pos.z), 1.0);
+            this.fx.emit('star', tmpV.set(r.pos.x, 1.2, r.pos.z), 4, 2, 0.4);
+            r.hideProp.mesh.position.y = 0.35;
+          }
+        }
+      }
+    }
+
+    // 변신 사물 동기화 및 움직임 먼지 효과
+    for (const r of this.runners) {
+      if (!r.hideProp || r.status !== 'alive') continue;
+      r.hideT += dt;
+      const speed = r.vel.length();
+      if (speed > 0.15) {
+        r.hideStillT = 0;
+        if (Math.random() < 0.35) {
+          this.fx.emit('snow', tmpV.set(r.pos.x, 0.1, r.pos.z), 1, 0.8, 0.3, 1, 0.6);
+        }
+      } else {
+        r.hideStillT += dt;
+      }
+      r.hideProp.x = r.pos.x;
+      r.hideProp.z = r.pos.z;
+      r.hideProp.mesh.position.set(r.pos.x, r.hideProp.mesh.position.y > 0.05 ? Math.max(0, r.hideProp.mesh.position.y - dt * 2) : 0, r.pos.z);
+      if (r.hideStillT > HIDE_STILL_HINT) {
+        const warn = Math.min(1, (r.hideStillT - HIDE_STILL_HINT) / 4);
+        r.hideProp.mesh.rotation.z = Math.sin(this.elapsed * 6 + r.id) * warn * 0.1;
+      }
+    }
+
+    // 3) 기지 세이프 체크 (Safe Check)
+    for (const r of this.runners) {
+      if (r.status !== 'alive' || r.hideSafe) continue;
+      if (r.pos.distanceTo(this.hideBase) < BASE_R) {
+        if (r.hideEverHidden || r.hideDiscovered) {
+          r.hideSafe = true;
+          if (r.hideProp) {
+            this.scene.remove(r.hideProp.mesh);
+            r.hideProp = null;
+          }
+          r.m.root.visible = true;
+          this.setLabel(r, '🚩 세이프', '#5dff9e', 0.95);
+          this.fx.emit('star', tmpV.set(r.pos.x, 1.6, r.pos.z), 15, 4.5, 0.8, 4, 1.2);
+          this.fx.ring(tmpV.set(r.pos.x, 0.1, r.pos.z), 0x5dff9e, 5, 0.5);
+          this.fx.floatText('세이프!', '#5dff9e', tmpV.set(r.pos.x, 2.9, r.pos.z), 1.8);
+          if (this.near(r)) this.sfx.win();
+          this.toast(`🎉 세이프! ${r.name} 기지 도착 성공!`, '#5dff9e');
+        }
+      }
+    }
+
+    // 4) 술래 태그 체크 (변신 안 한 상태 또는 들킨 상태의 러너 터치)
+    if (tg && tg.status === 'alive' && tg.stun <= 0) {
+      for (const r of this.runners) {
+        if (r.status !== 'alive' || r.hideSafe || r.hideProp || r.grace > 0 || r.lift > 0.8) continue;
+        const d = r.pos.distanceTo(tg.pos);
+        if (d < TAG_DIST) {
+          this.eliminate(r, tg);
+          tg.tagAnim = 0.45;
+          tg.facing = Math.atan2(r.pos.x - tg.pos.x, r.pos.z - tg.pos.z);
+        }
+      }
+    }
+
+    // 5) 승패 판정
+    const allRunners = this.runners;
+    const caughtCount = allRunners.filter((r) => r.status === 'out').length;
+    const safeCount = allRunners.filter((r) => r.hideSafe).length;
+    const remainingActive = allRunners.filter((r) => r.status === 'alive' && !r.hideSafe).length;
+
+    if (caughtCount === allRunners.length) {
+      this.endRound('tagger', 'all_caught');
+    } else if (remainingActive === 0) {
+      this.endRound('runner', 'all_safe');
+    } else if (this.time <= 0) {
+      this.endRound(safeCount > 0 || remainingActive > 0 ? 'runner' : 'tagger', 'timeout');
+    }
   }
 
   aiHideSeeker(c: Char) {
-    const ai = c.ai, D = this.diff;
-    if (ai.think > 0) { this.moveToGoal(c); return; }
-    ai.think = D.think * rand(1.5, 2.6);
-    const suspicious = this.hideProps.filter((p) => Math.hypot(p.x - c.pos.x, p.z - c.pos.z) < 10);
-    if (suspicious.length && Math.random() < 0.42) {
-      const p = pick(suspicious); ai.goal = new THREE.Vector3(p.x + rand(-0.8, 0.8), 0, p.z + rand(-0.8, 0.8));
-    } else ai.goal = this.wanderPoint(c, null);
-    if (Math.random() < 0.18 && this.hideProps.length) {
-      const p = pick(this.hideProps.filter((x) => Math.hypot(x.x - c.pos.x, x.z - c.pos.z) < 14).length ? this.hideProps.filter((x) => Math.hypot(x.x - c.pos.x, x.z - c.pos.z) < 14) : this.hideProps);
-      ai.goal = new THREE.Vector3(p.x, 0, p.z);
+    const ai = c.ai, D = this.getDifficulty(c);
+    if (this.hidePrepT > 0) {
+      c.move.set(0, 0, 0);
+      c.facing = Math.PI;
+      return;
     }
+    if (ai.think > 0) { this.moveToGoal(c); return; }
+    ai.think = D.hide.think * rand(0.8, 1.25);
+
+    // 1순위: 들켜서 기지로 달려가는 도망자가 있으면 최우선 요격!
+    const escaping = this.runners.filter((r) => r.status === 'alive' && !r.hideSafe && !r.hideProp && r.hideDiscovered);
+    if (escaping.length) {
+      let bestEsc: Char | null = null, minD = Infinity;
+      for (const e of escaping) {
+        const d = e.pos.distanceTo(c.pos);
+        if (d < minD) { minD = d; bestEsc = e; }
+      }
+      if (bestEsc) {
+        const lead = D.hide.cutoff;
+        ai.goal = new THREE.Vector3(bestEsc.pos.x + bestEsc.vel.x * lead, 0, bestEsc.pos.z + bestEsc.vel.z * lead);
+        if (minD < 5 && c.dashCd <= 0 && Math.random() < D.hide.dashProb) {
+          const dir = tmpV.set(ai.goal.x - c.pos.x, 0, ai.goal.z - c.pos.z).normalize();
+          this.startDash(c, dir);
+        }
+        this.moveToGoal(c);
+        return;
+      }
+    }
+
+    // 2순위: 주변 의심 사물 조사
+    const nearbyTrans = this.runners.filter((r) => r.status === 'alive' && r.hideProp && !r.hideSafe);
+    let targetSuspect: THREE.Vector3 | null = null;
+    for (const r of nearbyTrans) {
+      const d = r.pos.distanceTo(c.pos);
+      if (d <= D.hide.seeDist) {
+        const moving = r.vel.length() > 0.15;
+        const spotted = moving ? Math.random() < D.hide.motionSense : (r.hideStillT > HIDE_STILL_HINT ? Math.random() < D.hide.memory : Math.random() < D.hide.memory * 0.5);
+        if (spotted) { targetSuspect = r.pos; break; }
+      }
+    }
+
+    if (targetSuspect) {
+      ai.goal = targetSuspect.clone();
+      if (c.pos.distanceTo(targetSuspect) < INSPECT_R * 0.95 && this.hideInspectCd <= 0) {
+        this.actInspect(c);
+      }
+    } else if (Math.random() < D.hide.falseInspect && this.hideProps.length) {
+      const p = pick(this.hideProps.filter((x) => Math.hypot(x.x - c.pos.x, x.z - c.pos.z) < 8) || this.hideProps);
+      if (p) {
+        ai.goal = new THREE.Vector3(p.x, 0, p.z);
+        if (c.pos.distanceTo(ai.goal) < INSPECT_R * 0.95 && this.hideInspectCd <= 0) {
+          this.actInspect(c);
+        }
+      }
+    } else {
+      // 기지에서 5m 이상 떨어진 곳으로 정찰 순찰 (기지 캠핑 절대 금지)
+      let p = this.wanderPoint(c, null);
+      if (p.distanceTo(this.hideBase) < 5.0) {
+        p = this.wanderPoint(c, null);
+      }
+      ai.goal = p;
+    }
+
     this.moveToGoal(c);
   }
 
   aiHideRunner(c: Char) {
-    const ai = c.ai, D = this.diff, tg = this.tagger;
-    if (!c.hideProp) {
-      if (ai.think <= 0) {
-        ai.think = D.think * rand(1.5, 2.5);
-        const d = Math.hypot(c.pos.x - tg.pos.x, c.pos.z - tg.pos.z);
-        if (d < 9) ai.goal = this.fleeGoal(c, this.fleeDir(c, tg), 7);
-        else {
-          const props = this.nearestHideProps(c, 5.5);
-          if (props.length) { ai.goal = new THREE.Vector3(props[0].x, 0, props[0].z); if (d > 12) this.toggleHide(c); }
-          else ai.goal = this.wanderPoint(c, tg);
-        }
-      }
-    } else if (c.hideStillT > HIDE_STILL_HINT + 3 && Math.random() < 0.01) this.toggleHide(c);
-    this.moveToGoal(c);
-  }
-
-  initPolice() {
-    const f = this.police!;
-    const spot = (x: number, z: number) => (this.nav.isFree(x, z) ? new THREE.Vector2(x, z) : this.nav.snap(x, z) ?? new THREE.Vector2(x, z));
-    this.policeStarts = {
-      cops: [spot(-3.6, 0), spot(3.6, 1.2), spot(0, -4.2)],
-      robbers: [spot(8, -18.5), spot(-8, 18.5), spot(13.5, -0.5)],
-    };
-    const jl = this.fx.label('🚔 감옥', '#ffd27a', 1.1);
-    jl.position.set(f.jail.x, 3.7, f.jail.z);
-    this.policeLabels = [jl];
-    this.refreshExitLabels(false);
-  }
-
-  refreshExitLabels(open: boolean) {
-    for (const s of this.exitLabels) this.fx.removeLabel(s);
-    this.exitLabels = (this.police?.exits ?? []).map((e) => {
-      const s = this.fx.label(open ? '🚪 탈출구 OPEN' : '🔒 탈출구', open ? '#9dffb0' : '#ff9a9a', 1.0);
-      s.position.set(e.x, 4, e.z);
-      return s;
-    });
-  }
-
-  resetPolice() {
-    this.policeT = 0; this.rescueT = 0; this.exitOpen = false; this.rescuer = null; this.policeSkillCd = 0; this.policeFlashT = 0;
-    this.refreshExitLabels(false);
-    this.police?.reset();
-  }
-
-  /** 살아있는(도망 중인) 숨는 사람 p 근처에 활동 가능한 술래이 있는가 */
-  copNear(p: Char, d: number) {
-    if (p.role !== 'runner' || p.status !== 'alive') return false;
-    return this.chars.some((c) => c.role === 'tagger' && c.status === 'alive' && c.stun <= 0 && c.pos.distanceTo(p.pos) < d);
-  }
-
-  /** 술래이 숨는 사람에게 닿으면 체포 → 감옥 안으로 이동 (status 'frozen' = 수감 중) */
-  arrest(r: Char, cop: Char) {
-    const f = this.police!;
-    const heard = this.near(r);
-    const jailed = this.runners.filter((x) => x.status === 'frozen').length;
-    const slot = f.jail.slots[jailed % f.jail.slots.length];
-    const fromX = r.pos.x, fromZ = r.pos.z;
-    this.fx.emit('star', tmpV.set(fromX, 1.6, fromZ), 12, 4.5, 0.9, 4, 1.3);
-    this.fx.emit('spark', tmpV.set(fromX, 1.2, fromZ), 16, 5, 0.6, 3, 1.1);
-    this.fx.ring(tmpV.set(fromX, 0.1, fromZ), 0xffd27a, 5, 0.45);
-    this.fx.floatText('체포!', '#ffe14a', tmpV.set(fromX, 2.8, fromZ), 1.6);
-    r.status = 'frozen'; r.iceT = 0; r.outT = 0;
-    r.stun = 0; r.stunType = null; r.lift = 0; r.recover = 0;
-    r.vel.set(0, 0, 0); r.move.set(0, 0, 0); r.knock.set(0, 0, 0);
-    r.dashT = 0; r.throwT = -1; r.item = null; r.motoT = 0; r.jellyT = 0; r.bag = false;
-    r.m.ufoBeam.visible = false; r.m.moto.visible = false; r.m.jellyBlob.visible = false; r.m.stars.visible = false;
-    r.pos.set(f.jail.x + slot.x, 0, f.jail.z + slot.y);
-    r.facing = 0;
-    r.ai.goal = null; r.ai.path.length = 0;
-    cop.st.tags++; r.st.outs++;
-    this.setLabel(r, '🔒 감옥', '#ffd27a', 0.85);
-    this.fx.ring(tmpV.set(r.pos.x, 0.1, r.pos.z), 0xffd27a, 4, 0.4);
-    if (heard) { this.sfx.tag(); this.sfx.out(); }
-    if (r.isPlayer) { this.toast('🚔 체포됐다! 동료 숨는 사람이 구출해주길 기다려요', '#ffd27a'); this.shake = 0.5; }
-    else if (cop.isPlayer) this.toast(`🚓 ${r.name} 체포! 감옥으로!`, '#ffe14a');
-    else this.toast(`${cop.name} → ${r.name} 체포!`, '#ffe9a8');
-  }
-
-  /** 숨는 사람이 감옥 근처에 머물러 구출 게이지가 차면 갇힌 숨는 사람이 모두 풀려난다 */
-  releasePrisoners(by: Char, list: Char[]) {
-    const f = this.police!;
-    const base = Math.atan2(by.pos.x - f.jail.x, by.pos.z - f.jail.z);
-    const offs = [0, 0.8, -0.8, 1.6, -1.6];
-    list.forEach((r, i) => {
-      const a = base + offs[i % offs.length];
-      const tx = f.jail.x + Math.sin(a) * 3.3, tz = f.jail.z + Math.cos(a) * 3.3;
-      const s = this.nav.isFree(tx, tz) ? null : this.nav.snap(tx, tz);
-      const px = s ? s.x : tx, pz = s ? s.y : tz;
-      r.status = 'alive'; r.iceT = 0; r.thawT = 0.5; r.grace = 1.8; r.freezeCd = 0; r.motoT = 1.5;
-      r.pos.set(px, 0, pz); r.vel.set(0, 0, 0); r.facing = a;
-      r.ai.think = 0; r.ai.goal = null; r.ai.path.length = 0;
-      this.setLabel(r, '🏃 숨는 사람', '#ffa0a0', 0.8);
-      this.fx.emit('star', tmpV.set(px, 1.6, pz), 10, 4, 0.8, 4, 1.2);
-      this.fx.emit('spark', tmpV.set(px, 1.2, pz), 14, 4, 0.6, 2, 1.1);
-      this.fx.ring(tmpV.set(px, 0.1, pz), 0x5dff8a, 5, 0.5);
-      this.fx.floatText('탈옥!', '#9dffb0', tmpV.set(px, 2.9, pz), 1.6);
-      if (r.isPlayer) this.toast('🔓 구출됐다! 다시 도망쳐요!', '#9dffb0');
-    });
-    by.st.thaws += list.length; by.rs.thaws += list.length;
-    if (by.isPlayer) this.toast(`🔓 구출 성공! 동료 ${list.length}명 탈옥!`, '#9dffb0');
-    else if (!list.some((x) => x.isPlayer)) this.toast(`🔓 ${by.name}이(가) 동료를 구출했다!`, '#c9ffd6');
-    if (this.near(by)) this.sfx.thaw();
-  }
-
-  /** 숨바꼭질 한 프레임: 보석 수집 → 탈출구 개방 → 체포 → 구출 → 탈출 → 승패 판정 */
-  updatePolice(dt: number) {
-    const f = this.police!;
-    // 1) 보석: 숨는 사람이 보석을 먹으면 팀 게이지가 충전되고, 100%면 탈출구가 열린다
-    if (this.police) {
-      for (const r of this.runners) {
-        if (r.status !== 'alive') continue;
-        for (const j of f.jewels) {
-          if (!j.active) continue;
-          if ((r.pos.x - j.x) ** 2 + (r.pos.z - j.z) ** 2 < 1.05 * 1.05) {
-            j.active = false;
-            f.jewelProgress = Math.min(1, f.jewelProgress + 1 / f.jewels.length);
-            this.fx.emit('spark', tmpV.set(j.x, 0.8, j.z), 18, 4, 0.6, 3, 1.1);
-            this.fx.floatText(`보석! ${Math.round(f.jewelProgress * 100)}%`, '#7ee7ff', tmpV.set(j.x, 2.4, j.z), 1.2);
-            this.toastFor(r, `💎 보석 획득! 게이지 ${Math.round(f.jewelProgress * 100)}%`, '#7ee7ff');
-            break;
-          }
-        }
-      }
-      if (f.jewelProgress >= 0.999 && !this.exitOpen) { this.exitOpen = true; this.refreshExitLabels(true); this.toast('🚨 비상 탈출구 OPEN! 숨는 사람은 탈출할 수 있어요!', '#9dffb0'); }
+    const ai = c.ai, D = this.getDifficulty(c), tg = this.tagger;
+    if (c.hideSafe) {
+      c.move.set(0, 0, 0);
+      return;
     }
-    // 2) 체포: 술래이 숨는 사람에게 닿으면 감옥으로
-    for (const cop of this.chars) {
-      if (cop.role !== 'tagger' || cop.status !== 'alive' || cop.stun > 0 || this.copHeld(cop)) continue;
-      for (const r of this.runners) {
-        if (r.status !== 'alive' || r.grace > 0 || r.lift > 0.8) continue;
-        const dx = r.pos.x - cop.pos.x, dz = r.pos.z - cop.pos.z;
-        if (dx * dx + dz * dz < TAG_DIST * TAG_DIST) {
-          this.arrest(r, cop);
-          cop.tagAnim = 0.45; cop.facing = Math.atan2(dx, dz);
+
+    // 1) 준비 시간: 기지에서 10~22m 떨어진 사물 근처로 달려가 변신
+    if (this.hidePrepT > 0) {
+      if (!c.hideProp) {
+        if (!ai.spot || ai.spot.distanceTo(this.hideBase) < 8) {
+          const props = this.hideProps.filter((p) => Math.hypot(p.x - this.hideBase.x, p.z - this.hideBase.z) > 10);
+          const chosen = props.length ? pick(props) : null;
+          ai.spot = chosen ? new THREE.Vector3(chosen.x + rand(-1.2, 1.2), 0, chosen.z + rand(-1.2, 1.2)) : this.wanderPoint(c, tg);
         }
-      }
-    }
-    // 3) 구출: 자유로운 숨는 사람이 감옥 레버 구역에서 잠시 머물면 갇힌 숨는 사람이 모두 풀려난다
-    const prisoners = this.runners.filter((r) => r.status === 'frozen');
-    let rescuer: Char | null = null, bd = RESCUE_R;
-    if (prisoners.length) {
-      for (const r of this.runners) {
-        if (!this.canAct(r)) continue;
-        const d = Math.hypot(r.pos.x - f.jail.x, r.pos.z - f.jail.z);
-        if (d < bd) { bd = d; rescuer = r; }
-      }
-    }
-    this.rescuer = rescuer;
-    if (rescuer) {
-      this.rescueT = Math.min(RESCUE_TIME, this.rescueT + dt);
-      if (this.rescueT >= RESCUE_TIME) { this.releasePrisoners(rescuer, prisoners); this.rescueT = 0; this.rescuer = null; }
-    } else this.rescueT = Math.max(0, this.rescueT - dt * 1.5);
-    // 4) 비상 탈출: 보석 100% 후 열린 탈출구에 숨는 사람이 도착하면 즉시 승리
-    if (this.exitOpen) {
-      const exit = f.exits[0];
-      if (exit) for (const r of this.runners) {
-        if (r.status !== 'alive') continue;
-        if ((r.pos.x - exit.x) ** 2 + (r.pos.z - exit.z) ** 2 < 1.5 * 1.5) {
-          this.endRound('runner', 'escaped');
-          break;
+        ai.goal = ai.spot;
+        this.moveToGoal(c);
+        if (c.pos.distanceTo(ai.goal) < 2.5) {
+          this.toggleHide(c);
         }
+      } else {
+        c.move.set(0, 0, 0);
       }
+      return;
     }
-    this.checkPoliceEnd();
+
+    // 2) 찾는 시간
+    const dToTagger = tg ? c.pos.distanceTo(tg.pos) : Infinity;
+    const dToBase = c.pos.distanceTo(this.hideBase);
+
+    if (c.hideProp) {
+      c.move.set(0, 0, 0);
+      // 술래가 너무 가까이 오면 패닉 도주
+      if (dToTagger < D.hide.panicDist && Math.random() < D.hide.panic) {
+        this.toggleHide(c);
+        c.hideDiscovered = true;
+        ai.goal = this.hideBase.clone();
+      }
+      // 술래가 기지에서 멀고 나는 기지와 가까우면 몰래 기지로 질주(스닉 세이프)
+      const tgToBase = tg ? tg.pos.distanceTo(this.hideBase) : 0;
+      if (tgToBase > 14 && dToBase < 12 && Math.random() < D.hide.sneak) {
+        this.toggleHide(c);
+        c.hideDiscovered = true;
+        ai.goal = this.hideBase.clone();
+      }
+    } else {
+      // 들켰거나 변신 안 된 상태: 기지로 전력질주!
+      ai.goal = this.hideBase.clone();
+      if (dToTagger < 4.5 && c.dashCd <= 0) {
+        const toBase = tmpV.copy(this.hideBase).sub(c.pos).setY(0).normalize();
+        this.startDash(c, toBase);
+      }
+      this.moveToGoal(c);
+    }
   }
 
-  /** 모든 숨는 사람이 감옥에 있으면 술래팀 승리 · 제한시간이 끝나면 숨는 사람팀 승리 */
-  checkPoliceEnd() {
+  hideHud(): HideHud {
     const rs = this.runners;
-    if (rs.every((r) => r.status === 'frozen')) this.endRound('tagger', 'all_jailed');
-    else if (this.time <= 0) this.endRound('runner', 'timeout');
-  }
-
-  updatePoliceVisuals() {
-    const prisoners = this.runners.filter((r) => r.status === 'frozen').length;
-    this.police?.update(this.elapsed, this.exitOpen, this.rescueT / RESCUE_TIME, prisoners);
-  }
-
-  policeHud(): PoliceHud {
-    const rs = this.runners;
+    const p = this.player;
+    const hidden = rs.filter((r) => r.status === 'alive' && !!r.hideProp).length;
+    const safe = rs.filter((r) => r.hideSafe).length;
+    const caught = rs.filter((r) => r.status === 'out').length;
+    const found = rs.filter((r) => r.status === 'alive' && !r.hideProp && !r.hideSafe).length;
     return {
-      free: rs.filter((r) => r.status === 'alive').length,
-      jailed: rs.filter((r) => r.status === 'frozen').length,
-      escaped: rs.filter((r) => r.status === 'out').length,
+      prep: Math.max(0, Math.ceil(this.hidePrepT)),
+      hidden,
+      found,
+      safe,
+      caught,
       total: rs.length,
-      rescue: this.rescueT / RESCUE_TIME,
-      rescuing: this.rescuer === this.player,
-      exitsOpen: this.exitOpen,
-      exitIn: this.exitOpen ? 0 : 0,
-      holdIn: this.phase === 'playing' ? Math.max(0, Math.ceil(COP_HOLD - this.policeT)) : 0,
+      need: rs.length,
+      inspectCd: this.hideInspectCd / INSPECT_CD,
+      reHideCd: p.reHideCd / REHIDE_CD,
+      meHidden: !!p.hideProp,
+      meSafe: p.hideSafe,
+      canSafe: p.hideEverHidden || p.hideDiscovered,
+      hint: this.hideKkoekkori,
+      taggerName: this.tagger.name,
     };
   }
 
-  /** 화면 밖 술래/숨는 사람 + 감옥 · 열린 탈출구 안내 화살표 */
-  buildPoliceMarkers(): Marker[] {
-    const p = this.player, f = this.police!;
+  buildHideMarkers(): Marker[] {
+    const p = this.player;
     const out: Marker[] = [];
     const edge = (x: number, y: number, z: number, extra: Pick<Marker, 'team' | 'animal'> & Partial<Marker>) => {
       const v = tmpV.set(x, y, z).project(this.camera);
@@ -1333,9 +1650,22 @@ export class Game {
       mx /= m; my /= m;
       out.push({ x: (mx + 1) / 2, y: (1 - my) / 2, angle, frozen: false, tagger: false, ...extra });
     };
-    const list = p.role === 'tagger' ? this.runners.filter((r) => r.status === 'alive') : this.chars.filter((c) => c.role === 'tagger' && c.status === 'alive');
-    for (const e of list) edge(e.pos.x, e.lift + 1, e.pos.z, { team: e.team, animal: e.animal });
-    if (this.runners.some((r) => r.status === 'frozen')) edge(f.jail.x, 1.5, f.jail.z, { team: 'red', animal: 'dog', kind: 'jail' });
+
+    // 기지 위치 안내 마커 (항상 표시)
+    edge(this.hideBase.x, 1.2, this.hideBase.z, { team: 'blue', animal: 'dog', kind: 'base' });
+
+    if (p.role === 'runner') {
+      // 술래 위치 화살표
+      const tg = this.tagger;
+      if (tg && tg.status === 'alive') edge(tg.pos.x, tg.lift + 1, tg.pos.z, { team: tg.team, animal: tg.animal, tagger: true });
+    } else {
+      // 술래인 경우: 들켜서 기지로 달려가는 러너들 화살표 표시
+      for (const r of this.runners) {
+        if (r.status === 'alive' && !r.hideSafe && !r.hideProp && r.hideDiscovered) {
+          edge(r.pos.x, r.lift + 1, r.pos.z, { team: r.team, animal: r.animal });
+        }
+      }
+    }
     return out;
   }
 
@@ -1992,41 +2322,62 @@ export class Game {
   }
 
   aiRunner(c: Char) {
-    const ai = c.ai, D = this.diff, tg = this.tagger;
+    const ai = c.ai, D = this.getDifficulty(c), tg = this.tagger;
     const dx = c.pos.x - tg.pos.x, dz = c.pos.z - tg.pos.z;
     const dT = Math.hypot(dx, dz);
     const tgActive = tg.stun <= 0;
     const closing = (tg.vel.x * -dx + tg.vel.z * -dz) / (dT || 1) > 1.5 || dT < 3;
     const othersAlive = this.runners.some((r) => r !== c && r.status === 'alive');
 
-    // (rescue itself is automatic for everyone — see autoThawCheck; the AI only needs to walk close)
-    // freeze is the runner's main survival tool: generous range, urgency-scaled rate.
-    // Danger (dashing tagger / cornered / slowed) widens the trigger zone; closeness raises the rate.
-    // A short reaction delay remains so a well-timed tagger dash can still catch a runner.
     const tgFast = tg.dashT > 0 || tg.motoT > 0;
     const awayX = dx / (dT || 1), awayZ = dz / (dT || 1);
     const corneredNow = pointBlocked(this.world.colliders, c.pos.x + awayX * 2.2, c.pos.z + awayZ * 2.2, CHAR_R);
     const effDist = D.freezeDist * ai.panic + (tgFast ? 0.9 : 0) + (corneredNow ? 0.5 : 0) + (c.jellyT > 0 ? 0.4 : 0);
-    const threat = closing || dT < D.freezeClose; // don't freeze when the tagger is running away
-    if (tgActive && othersAlive && threat && c.freezeCd <= 0 && dT < effDist && tg.lift < 0.5) {
-      ai.alarm += this.lastDt;
-      if (ai.alarm >= D.react * ai.panic * 0.7) {
-        const closeness = Math.min(1, Math.max(0, 1 - dT / effDist));
-        let rate = D.freezeRate * (0.35 + closeness * 1.6);
-        if (c.dashCd > 0) rate += 6;
-        if (corneredNow) rate += 7;
-        if (tgFast) rate += 7;
-        if (c.jellyT > 0) rate += 5;
-        if (dT < D.freezeClose || Math.random() < rate * this.lastDt) { ai.alarm = 0; this.freeze(c); return; }
-      }
-    } else ai.alarm = Math.max(0, ai.alarm - this.lastDt * 2);
-    // emergency dash
-    if (tgActive && closing && dT < D.dangerDist && c.dashCd <= 0 && ai.dodgeT <= 0) {
+    const threat = closing || dT < D.freezeClose;
+
+    // 구석에 몰렸을 때 무조건 얼음하지 않고 대시가 가능하면 옆 빈틈으로 회피 대시 우선 시도 (난이도별 dashFirst)
+    if (corneredNow && tgActive && closing && dT < D.ice.dangerDist && c.dashCd <= 0 && ai.dodgeT <= 0 && (D.ice.dashFirst || Math.random() < 0.6)) {
       const dir = this.fleeDir(c, tg);
       this.startDash(c, dir);
       ai.fleeDir.copy(dir);
       ai.dodgeT = 0.4;
     }
+
+    if (tgActive && othersAlive && threat && c.freezeCd <= 0 && dT < effDist && tg.lift < 0.5) {
+      if (!ai.missRolled) {
+        ai.missRolled = true;
+        ai.missFreeze = Math.random() < D.ice.freezeMiss;
+      }
+      if (!ai.missFreeze) {
+        ai.alarm += this.lastDt;
+        if (ai.alarm >= D.ice.react * ai.panic * 0.7) {
+          const closeness = Math.min(1, Math.max(0, 1 - dT / effDist));
+          let rate = D.ice.freezeRate * (0.35 + closeness * 1.6);
+          if (c.dashCd > 0) rate += 6;
+          if (corneredNow) rate += 7;
+          if (tgFast) rate += 7;
+          if (c.jellyT > 0) rate += 5;
+          if (dT < D.ice.freezeClose || Math.random() < rate * this.lastDt) {
+            ai.alarm = 0;
+            ai.missRolled = false;
+            this.freeze(c);
+            return;
+          }
+        }
+      }
+    } else {
+      ai.alarm = Math.max(0, ai.alarm - this.lastDt * 2);
+      if (dT > effDist + 2) ai.missRolled = false;
+    }
+
+    // emergency dash
+    if (tgActive && closing && dT < D.ice.dangerDist && c.dashCd <= 0 && ai.dodgeT <= 0) {
+      const dir = this.fleeDir(c, tg);
+      this.startDash(c, dir);
+      ai.fleeDir.copy(dir);
+      ai.dodgeT = 0.4;
+    }
+
     // items
     if (c.item && ai.itemCd <= 0 && tgActive) {
       let use = false;
@@ -2037,10 +2388,11 @@ export class Game {
       }
       if (use) { this.useItem(c); ai.itemCd = 1; }
     }
+
     if (ai.think <= 0) {
       ai.think = D.think * rand(0.8, 1.3);
       ai.rescue = null;
-      if (tgActive && dT < D.fleeDist) {
+      if (tgActive && dT < D.ice.fleeDist) {
         const dir = this.fleeDir(c, tg);
         ai.fleeDir.copy(dir);
         ai.goal = this.fleeGoal(c, dir, 4);
@@ -2048,12 +2400,14 @@ export class Game {
         let best: Char | null = null, bd = Infinity;
         for (const f of this.runners) {
           if (f === c || f.status !== 'frozen') continue;
-          if (f.pos.distanceTo(tg.pos) < D.rescueSafe) continue;
+          if (f.pos.distanceTo(tg.pos) < D.ice.rescueSafe) continue;
           const d = f.pos.distanceTo(c.pos);
           if (d < bd) { bd = d; best = f; }
         }
-        if (best) { ai.rescue = best; ai.goal = best.pos.clone(); }
-        else {
+        if (best) {
+          ai.rescue = best;
+          ai.goal = best.pos.clone();
+        } else {
           let box: ItemBox | null = null, bxd = 11;
           if (!c.item) {
             for (const it of this.items) {
@@ -2066,7 +2420,10 @@ export class Game {
           if (box) ai.goal = new THREE.Vector3(box.x, 0, box.z);
           else {
             ai.wanderT -= D.think;
-            if (!ai.goal || ai.wanderT <= 0 || c.pos.distanceTo(ai.goal) < 1.2) { ai.wanderT = rand(2, 4); ai.goal = this.wanderPoint(c, tg); }
+            if (!ai.goal || ai.wanderT <= 0 || c.pos.distanceTo(ai.goal) < 1.2) {
+              ai.wanderT = rand(2, 4);
+              ai.goal = this.wanderPoint(c, tg);
+            }
           }
         }
       }
@@ -2076,14 +2433,37 @@ export class Game {
   }
 
   aiTagger(c: Char) {
-    const ai = c.ai, D = this.diff;
+    const ai = c.ai, D = this.getDifficulty(c);
+    const alive = this.runners.filter((r) => r.status === 'alive');
+    const frozen = this.runners.filter((r) => r.status === 'frozen');
+
+    // 1) 캠핑(얼음 지키기) 방지 메커니즘
+    if (ai.leaveT > 0) {
+      ai.leaveT = Math.max(0, ai.leaveT - this.lastDt);
+      if (ai.leaveT <= 0) ai.leaveFrom = null;
+    }
+
+    const nearbyFrozen = frozen.find((f) => f.pos.distanceTo(c.pos) < 3.2);
+    if (nearbyFrozen && alive.length > 0) {
+      ai.campT += this.lastDt;
+      if (ai.campT >= D.ice.campLimit) {
+        // 얼음 앞 대기 한도 초과! 즉시 해당 위치를 버리고 다른 도망자에게 이동
+        ai.leaveFrom = nearbyFrozen;
+        ai.leaveT = 4.2;
+        ai.campT = 0;
+        ai.target = null;
+      }
+    } else {
+      ai.campT = Math.max(0, ai.campT - this.lastDt * 1.5);
+    }
+
     if (ai.hesitate > 0) return;
     if (ai.think <= 0) {
-      ai.think = D.think * rand(0.7, 1.2);
-      if (Math.random() < D.hesitate) { ai.hesitate = 0.35; return; }
-      const alive = this.runners.filter((r) => r.status === 'alive');
+      ai.think = D.ice.think * rand(0.7, 1.2);
+      if (Math.random() < D.ice.hesitate) { ai.hesitate = 0.28; return; }
       if (!alive.length) { ai.goal = null; ai.target = null; return; }
-      const frozen = this.runners.filter((r) => r.status === 'frozen');
+
+      // 타겟 선정: 방금 이탈한 얼음 근처에 있는 대상은 감점, 거리 및 상태 점수 계산
       let best: Char | null = null, bs = Infinity;
       for (const e of alive) {
         let s = e.pos.distanceTo(c.pos);
@@ -2091,207 +2471,81 @@ export class Game {
         if (e.jellyT > 0) s -= 3;
         if (e.motoT > 0) s += 5;
         if (e === ai.target) s -= 1.5;
-        for (const f of frozen) if (e.pos.distanceTo(f.pos) < 5) { s -= 3; break; }
         if (!lineOfSight(this.world.colliders, c.pos.x, c.pos.z, e.pos.x, e.pos.z)) s += 3;
+        // 이탈 중인 얼음 위치 근처 대상은 우선순위 대폭 하향 (다른 곳의 도망자 우선)
+        if (ai.leaveFrom && e.pos.distanceTo(ai.leaveFrom.pos) < 5.5) s += 10;
+        // 얼어있는 동료를 구하러 다가오는 대상은 매복/차단 가산점 (보통/어려움)
+        if (D.ice.cutoff > 0 && frozen.some((f) => e.pos.distanceTo(f.pos) < 6)) s -= 3.5;
         if (s < bs) { bs = s; best = e; }
       }
+
+      if (!best && alive.length) best = alive[0];
       ai.target = best;
-      const t = best!;
+      const t = best;
+      if (!t) return;
+
       const d = t.pos.distanceTo(c.pos);
-      if (d > 14 && frozen.length > 0) {
-        let g = frozen[0], gd = Infinity;
-        for (const f of frozen) {
-          const dd = Math.min(...alive.map((a) => a.pos.distanceTo(f.pos)));
-          if (dd < gd) { gd = dd; g = f; }
+
+      // 목표 이동 지점 산출 (이전의 'd > 14일 때 얼음 주변 서성이기'는 완전 삭제!)
+      const lead = Math.min(1.2, d / 7.5) * D.ice.lead;
+      let targetGoal = new THREE.Vector3(t.pos.x + t.vel.x * lead, 0, t.pos.z + t.vel.z * lead);
+
+      // 코너 도주로 차단 (Cutoff)
+      if (D.ice.cutoff > 0) {
+        const fleeEst = tmpV.copy(t.vel).setY(0);
+        if (fleeEst.lengthSq() > 0.1) {
+          targetGoal.addScaledVector(fleeEst.normalize(), D.ice.cutoff * 1.5);
         }
-        const to = tmpV.set(t.pos.x - g.pos.x, 0, t.pos.z - g.pos.z).normalize();
-        ai.goal = g.pos.clone().addScaledVector(to, 2.5);
-        if (c.item === 'banana' && ai.itemCd <= 0 && c.pos.distanceTo(g.pos) < 3.5) { this.useItem(c); ai.itemCd = 2; }
-      } else {
-        const lead = Math.min(1, d / 8) * D.tagLead;
-        ai.goal = new THREE.Vector3(t.pos.x + t.vel.x * lead, 0, t.pos.z + t.vel.z * lead);
-        if (pointBlocked(this.world.colliders, ai.goal.x, ai.goal.z, 0.3)) ai.goal.set(t.pos.x, 0, t.pos.z);
       }
-      if (c.item && c.item !== 'banana' && ai.itemCd <= 0 && d < 13) { this.useItem(c); ai.itemCd = 1.5; }
-      else if (c.item === 'banana' && ai.itemCd <= 0 && frozen.length === 0 && Math.random() < 0.05) { this.useItem(c); ai.itemCd = 3; }
-      if (c.dashCd <= 0 && d > 1.8 && d < 6.5 && Math.random() < D.tagDashProb && ai.goal) {
+
+      if (pointBlocked(this.world.colliders, targetGoal.x, targetGoal.z, 0.3)) {
+        targetGoal.set(t.pos.x, 0, t.pos.z);
+      }
+
+      // 이탈 중인데 목표가 여전히 이탈 대상 얼음 근처라면 반대 방향으로 회피 유도
+      if (ai.leaveFrom && targetGoal.distanceTo(ai.leaveFrom.pos) < 4.0) {
+        const away = tmpV.copy(c.pos).sub(ai.leaveFrom.pos).setY(0).normalize();
+        targetGoal.addScaledVector(away, 4.0);
+      }
+
+      ai.goal = targetGoal;
+
+      // 아이템 사용
+      if (c.item && ai.itemCd <= 0) {
+        if (c.item === 'banana') {
+          if (c.pos.distanceTo(t.pos) < 4.0 || Math.random() < 0.08) {
+            this.useItem(c);
+            ai.itemCd = 3;
+          }
+        } else if (d < 14) {
+          this.useItem(c);
+          ai.itemCd = 1.5;
+        }
+      }
+
+      // 대시
+      if (c.dashCd <= 0 && d > 1.8 && d < D.ice.dashRange && Math.random() < D.ice.dashProb && ai.goal) {
         const dir = tmpV.set(ai.goal.x - c.pos.x, 0, ai.goal.z - c.pos.z).normalize();
         const want = Math.atan2(dir.x, dir.z);
-        if (Math.abs(angleDiff(c.facing, want)) < 0.6 && !pointBlocked(this.world.colliders, c.pos.x + dir.x * 2, c.pos.z + dir.z * 2, CHAR_R)) this.startDash(c, dir);
-      }
-    }
-    this.moveToGoal(c);
-  }
-
-  /**
-   * 술래 AI: 얼음땡 술래 AI(목표 선정 · 선읽기 · 대시)를 바탕으로
-   * 동료와 같은 숨는 사람을 겹쳐 쫓지 않고, 갇힌 숨는 사람이 있으면 한 명이 감옥을 지키며, 열린 탈출구를 막는다.
-   */
-  aiCop(c: Char) {
-    const ai = c.ai, D = this.diff, f = this.police!;
-    if (this.copHeld(c) || ai.hesitate > 0) return;
-    if (ai.think <= 0) {
-      ai.think = D.think * rand(0.7, 1.2);
-      if (Math.random() < D.hesitate) { ai.hesitate = 0.35; return; }
-      const free = this.runners.filter((r) => r.status === 'alive');
-      if (!free.length) { ai.goal = null; ai.target = null; return; }
-      const mates = this.chars.filter((o) => o !== c && o.role === 'tagger' && o.status === 'alive');
-      const jailed = this.runners.filter((r) => r.status === 'frozen').length;
-      const jx = f.jail.x, jz = f.jail.z;
-      // 갇힌 숨는 사람이 있을 때 번호가 가장 낮은 술래이 감옥 지킴이
-      const guard = jailed > 0 && !mates.some((o) => o.id < c.id);
-      let best: Char | null = null, bs = Infinity;
-      for (const e of free) {
-        let s = e.pos.distanceTo(c.pos);
-        if (e.stun > 0 || e.lift > 0.3) s -= 6;
-        if (e.jellyT > 0) s -= 3;
-        if (e.motoT > 0) s += 5;
-        if (e === ai.target) s -= 1.5;
-        if (!lineOfSight(this.world.colliders, c.pos.x, c.pos.z, e.pos.x, e.pos.z)) s += 3;
-        for (const o of mates) if (o.ai.target === e && o.pos.distanceTo(e.pos) < e.pos.distanceTo(c.pos)) { s += 5; break; }
-        if (jailed > 0 && Math.hypot(e.pos.x - jx, e.pos.z - jz) < 7) s -= 5;
-            if (s < bs) { bs = s; best = e; }
-      }
-      ai.target = best;
-      const t = best!;
-      const d = t.pos.distanceTo(c.pos);
-      const dJ = Math.hypot(t.pos.x - jx, t.pos.z - jz);
-      let chasing = true;
-      if (guard && dJ > 8) {
-        // 감옥 앞 구출 범위 바로 바깥에서 가장 가까운 숨는 사람 쪽을 막는다
-        const dir = tmpV.set(t.pos.x - jx, 0, t.pos.z - jz).normalize();
-        ai.goal = new THREE.Vector3(jx + dir.x * (RESCUE_R + 0.6), 0, jz + dir.z * (RESCUE_R + 0.6));
-        chasing = false;
-      } else if (d > 14) {
-        // 멀리 있는 숨는 사람도 탈출구가 아닌 숨는 사람의 현재 위치를 기준으로 추격한다
-        ai.goal = new THREE.Vector3(t.pos.x, 0, t.pos.z);
-        chasing = false;
-      } else {
-        // 술래은 숨는 사람의 움직임을 절반만 예측한다 (완벽한 요격이면 숨는 사람이 버틸 수 없다)
-        const lead = Math.min(1, d / 8) * D.tagLead * 0.5;
-        ai.goal = new THREE.Vector3(t.pos.x + t.vel.x * lead, 0, t.pos.z + t.vel.z * lead);
-        if (pointBlocked(this.world.colliders, ai.goal.x, ai.goal.z, 0.3)) ai.goal.set(t.pos.x, 0, t.pos.z);
-      }
-      if (c.item && c.item !== 'banana' && ai.itemCd <= 0 && d < 13) { this.useItem(c); ai.itemCd = 1.5; }
-      else if (c.item === 'banana' && ai.itemCd <= 0 && (dJ < 6 || Math.random() < 0.05)) { this.useItem(c); ai.itemCd = 3; }
-      if (chasing && c.dashCd <= 0 && d > 1.8 && d < 6.5 && Math.random() < D.tagDashProb * 0.6 && ai.goal) {
-        const dir = tmpV.set(ai.goal.x - c.pos.x, 0, ai.goal.z - c.pos.z).normalize();
-        const want = Math.atan2(dir.x, dir.z);
-        if (Math.abs(angleDiff(c.facing, want)) < 0.6 && !pointBlocked(this.world.colliders, c.pos.x + dir.x * 2, c.pos.z + dir.z * 2, CHAR_R)) this.startDash(c, dir);
-      }
-    }
-    this.moveToGoal(c);
-  }
-
-  /**
-   * 숨는 사람 도주 목표: 술래보다 먼저 도착할 수 있고(여유 거리), 열려 있고, 맵 가장자리(막다른 곳)가 아닌 지점.
-   * 술래 쪽으로 가로질러 지나가는 경로는 감점하고, 직전 목표는 가점을 줘 떨림 없이 이어간다.
-   */
-  safeGoal(c: Char, cops: Char[]): THREE.Vector3 | null {
-    if (!cops.length) return null;
-    const segDist = (o: Char, bx: number, bz: number) => {
-      const ax = c.pos.x, az = c.pos.z, dx = bx - ax, dz = bz - az;
-      const l2 = dx * dx + dz * dz || 1;
-      const t = Math.max(0, Math.min(1, ((o.pos.x - ax) * dx + (o.pos.z - az) * dz) / l2));
-      return Math.hypot(o.pos.x - (ax + dx * t), o.pos.z - (az + dz * t));
-    };
-    const cands: { x: number; z: number; bonus: number }[] = [];
-    const cur = c.ai.goal;
-    if (cur) cands.push({ x: cur.x, z: cur.z, bonus: 2.5 });
-    for (let i = 0; i < 14; i++) {
-      const p = this.nav.randomOpenPoint(c.pos.x, c.pos.z, 3, 11, 1.2, 6);
-      if (p) cands.push({ x: p.x, z: p.y, bonus: 0 });
-    }
-    let best: THREE.Vector3 | null = null, bs = -Infinity;
-    for (const k of cands) {
-      const myD = Math.hypot(k.x - c.pos.x, k.z - c.pos.z);
-      if (myD < 1.5) continue;
-      let margin = Infinity, cross = 0;
-      for (const o of cops) {
-        margin = Math.min(margin, Math.hypot(k.x - o.pos.x, k.z - o.pos.z) - myD * 1.05);
-        if (segDist(o, k.x, k.z) < 2.5) cross = 1;
-      }
-      const edge = Math.max(Math.abs(k.x) / 15, Math.abs(k.z) / 21);
-      const score = Math.min(margin, 10) + Math.min(this.nav.clearance(k.x, k.z), 3) * 1.2 - edge * edge * 9 - cross * 6 + k.bonus + Math.random() * 1.2;
-      if (score > bs) { bs = score; best = new THREE.Vector3(k.x, 0, k.z); }
-    }
-    return best;
-  }
-
-  /**
-   * 숨는 사람 AI: 얼음땡 도망자 AI(도주 방향 · 비상 대시 · 아이템)를 바탕으로
-   * 술래이 가까우면 도망, 안전하면 갇힌 동료 구출 / 열린 탈출구로 이동 / 아이템 획득.
-   */
-  aiRobber(c: Char) {
-    const ai = c.ai, D = this.diff, f = this.police!;
-    let cop: Char | null = null, dC = Infinity;
-    for (const o of this.chars) {
-      if (o.role !== 'tagger' || o.status !== 'alive') continue;
-      const d = o.pos.distanceTo(c.pos);
-      if (d < dC) { dC = d; cop = o; }
-    }
-    const active = !!cop && cop.stun <= 0 && cop.lift < 0.5;
-    let closing = false;
-    if (cop) {
-      const dx = c.pos.x - cop.pos.x, dz = c.pos.z - cop.pos.z;
-      closing = (cop.vel.x * -dx + cop.vel.z * -dz) / (dC || 1) > 1.5 || dC < 3;
-    }
-    if (cop && active && closing && dC < D.dangerDist && c.dashCd <= 0 && ai.dodgeT <= 0) {
-      let dir = this.fleeDir(c, cop);
-      if (ai.goal) {
-        const gx = ai.goal.x - c.pos.x, gz = ai.goal.z - c.pos.z, gl = Math.hypot(gx, gz);
-        if (gl > 1 && (gx * (c.pos.x - cop.pos.x) + gz * (c.pos.z - cop.pos.z)) / gl > 0) dir = new THREE.Vector3(gx / gl, 0, gz / gl);
-      }
-      this.startDash(c, dir);
-      ai.fleeDir.copy(dir);
-      ai.dodgeT = 0.4;
-    }
-    if (c.item && ai.itemCd <= 0 && cop && active) {
-      let use = false;
-      switch (c.item) {
-        case 'moto': use = dC < 7; break;
-        case 'banana': use = dC < 5 && closing; break;
-        default: use = dC < 11;
-      }
-      if (use) { this.useItem(c); ai.itemCd = 1; }
-    }
-    if (ai.think <= 0) {
-      ai.think = D.think * rand(0.8, 1.3);
-      const cops = this.chars.filter((o) => o.role === 'tagger' && o.status === 'alive');
-      const copDist = (x: number, z: number) => cops.reduce((m, o) => Math.min(m, Math.hypot(o.pos.x - x, o.pos.z - z)), Infinity);
-      const prisoners = this.runners.filter((r) => r.status === 'frozen').length;
-      if (cop && active && dC < D.fleeDist * 0.85) {
-        const dir = this.fleeDir(c, cop);
-        ai.fleeDir.copy(dir);
-        ai.goal = this.safeGoal(c, cops.filter((o) => o.stun <= 0)) ?? this.fleeGoal(c, dir, 4);
-      } else {
-        const jailSafe = copDist(f.jail.x, f.jail.z) > D.rescueSafe;
-        const wantRescue = prisoners > 0 && jailSafe && (c.id % 2 === 1 || !this.exitOpen);
-        if (this.exitOpen && c.status === 'alive') {
-          const ex = f.exits[0];
-          if (ex) ai.goal = new THREE.Vector3(ex.x, 0, ex.z);
-        } else if (wantRescue) {
-          const a = Math.atan2(c.pos.x - f.jail.x, c.pos.z - f.jail.z);
-          ai.goal = new THREE.Vector3(f.jail.x + Math.sin(a) * 2.5, 0, f.jail.z + Math.cos(a) * 2.5);
-        } else {
-          const jewel = f.jewels.filter((j) => j.active).sort((a, b) => Math.hypot(a.x - c.pos.x, a.z - c.pos.z) - Math.hypot(b.x - c.pos.x, b.z - c.pos.z))[0];
-          if (jewel && (!cop || dC > D.fleeDist * 0.9)) ai.goal = new THREE.Vector3(jewel.x, 0, jewel.z);
-          else ai.goal = this.safeGoal(c, cops.filter((o) => o.stun <= 0)) ?? this.fleeGoal(c, new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5), 8);
+        if (Math.abs(angleDiff(c.facing, want)) < 0.6 && !pointBlocked(this.world.colliders, c.pos.x + dir.x * 2, c.pos.z + dir.z * 2, CHAR_R)) {
+          this.startDash(c, dir);
         }
       }
     }
-    if (ai.dodgeT > 0) { c.move.copy(ai.fleeDir); return; }
+
     this.moveToGoal(c);
   }
 
   aiOjaemi(c: Char) {
-    const ai = c.ai, D = this.diff;
+    const ai = c.ai, D = this.getDifficulty(c);
+
+    // 날아오는 오재미 감지 및 회피
     for (const p of this.projectiles) {
-      if (!p.alive || !this.isEnemy(c, p.owner) || ai.seen.has(p) || p.age < D.react) continue;
+      if (!p.alive || !this.isEnemy(c, p.owner) || ai.seen.has(p) || p.age < D.oj.react) continue;
       const tca = this.threatTime(c, p);
       if (tca === Infinity || tca > 1.1) continue;
       ai.seen.add(p);
-      if (Math.random() < D.dodgeProb) {
+      if (Math.random() < D.oj.dodgeProb) {
         const vx = p.vel.x, vz = p.vel.z;
         const v2 = vx * vx + vz * vz;
         const rx = c.pos.x - p.pos.x, rz = c.pos.z - p.pos.z;
@@ -2302,32 +2556,50 @@ export class Game {
         if (pointBlocked(this.world.colliders, c.pos.x + perp.x * side * 1.5, c.pos.z + perp.z * side * 1.5, CHAR_R)) side = -side;
         ai.dodgeDir.copy(perp).multiplyScalar(side);
         ai.dodgeT = 0.45;
-        if (c.dashCd <= 0 && tca < 0.55 && Math.random() < 0.75) this.startDash(c, ai.dodgeDir);
+        if (c.dashCd <= 0 && tca < 0.55 && Math.random() < D.oj.dashDodge) {
+          this.startDash(c, ai.dodgeDir);
+        }
       }
     }
+
     if (ai.dodgeT > 0) { c.move.copy(ai.dodgeDir); return; }
-    if (ai.think <= 0) { ai.think = D.think * rand(0.8, 1.25); this.ojaemiThink(c); }
+
+    if (ai.hesitate > 0) return;
+    if (ai.think <= 0) {
+      ai.think = D.oj.think * rand(0.8, 1.25);
+      if (Math.random() < D.oj.hesitate) { ai.hesitate = 0.25; return; }
+      this.ojaemiThink(c);
+    }
+
     const t = ai.target;
     if (t && c.bag && ai.throwCd <= 0 && c.throwT < 0 && t.status === 'alive') {
       const d = t.pos.distanceTo(c.pos);
       if (d < 17 && t.invuln <= 0.3 && lineOfSight(this.world.colliders, c.pos.x, c.pos.z, t.pos.x, t.pos.z)) {
         const ft = d / THROW_SPEED + THROW_RELEASE;
-        const lead = t.stun > 0 ? 0 : D.lead;
-        const err = D.aimErr * (0.4 + d / 16);
-        this.startThrow(c, new THREE.Vector3(t.pos.x + t.vel.x * ft * lead + rand(-err, err), t.lift + 0.85, t.pos.z + t.vel.z * ft * lead + rand(-err, err)));
-        ai.throwCd = rand(D.throwMin, D.throwMax);
-      } else if (d >= 17) ai.throwCd = 0.3;
+        const lead = t.stun > 0 ? 0 : D.oj.lead;
+        const err = D.oj.aimErr * (0.4 + d / 16);
+        this.startThrow(c, new THREE.Vector3(
+          t.pos.x + t.vel.x * ft * lead + rand(-err, err),
+          t.lift + 0.85,
+          t.pos.z + t.vel.z * ft * lead + rand(-err, err)
+        ));
+        ai.throwCd = rand(D.oj.throwMin, D.oj.throwMax);
+      } else if (d >= 17) {
+        ai.throwCd = 0.3;
+      }
     }
     this.moveToGoal(c);
   }
 
   ojaemiThink(c: Char) {
-    const ai = c.ai, D = this.diff;
+    const ai = c.ai, D = this.getDifficulty(c);
     let best: Char | null = null, bs = Infinity;
     for (const e of this.enemyList(c)) {
       const d = e.pos.distanceTo(c.pos);
       let s = d;
-      if (e.stun > 0 && e.invuln <= 0) s -= 7;
+      // 난이도 집중 공격: 무적 풀린 기절 대상이나 약한 대상 점사
+      if (D.oj.focus && e.stun > 0 && e.invuln <= 0) s -= 9;
+      else if (e.stun > 0 && e.invuln <= 0) s -= 6;
       if (e.invuln > 0.4) s += 10;
       if (e === ai.target) s -= 2;
       if (!lineOfSight(this.world.colliders, c.pos.x, c.pos.z, e.pos.x, e.pos.z)) s += 5;
@@ -2349,7 +2621,7 @@ export class Game {
       const to = tmpV.set(best.pos.x - c.pos.x, 0, best.pos.z - c.pos.z);
       const d = to.length();
       to.divideScalar(d || 1);
-      const want = D.dist + ((c.id % 3) - 1) * 1.2;
+      const want = D.oj.dist + ((c.id % 3) - 1) * 1.2;
       if (Math.random() < 0.12) ai.strafe = -ai.strafe;
       const perp = new THREE.Vector3(-to.z, 0, to.x).multiplyScalar(ai.strafe);
       if (!lineOfSight(this.world.colliders, c.pos.x, c.pos.z, best.pos.x, best.pos.z)) goal = new THREE.Vector3(best.pos.x, 0, best.pos.z).addScaledVector(perp, 3);
@@ -2383,7 +2655,6 @@ export class Game {
   // ------------------------------------------------------------ char update
   updateChar(c: Char, dt: number) {
     const m0 = (v: number) => Math.max(0, v - dt);
-    this.policeSkillCd = m0(this.policeSkillCd); this.policeFlashT = m0(this.policeFlashT);
     c.dashCd = m0(c.dashCd); c.pickT = m0(c.pickT); c.invuln = m0(c.invuln); c.recover = m0(c.recover); c.jellyT = m0(c.jellyT);
     c.bumpCd = m0(c.bumpCd); c.grace = m0(c.grace); c.freezeCd = m0(c.freezeCd); c.thawT = m0(c.thawT); c.tagAnim = m0(c.tagAnim);
     if (c.motoT > 0) c.motoT = m0(c.motoT);
@@ -2440,8 +2711,20 @@ export class Game {
       c.vel.copy(c.dashDir).multiplyScalar(DASH_SPEED);
       if (Math.random() < 0.6) this.fx.emit(this.theme.snowy ? 'snow' : 'spark', tmpV2.set(c.pos.x, 0.15, c.pos.z), 1, 1, 0.3, 2, 0.7);
     } else {
-      let sp = this.chaseMode && c.role === 'tagger' ? TAGGER_SPEED : this.mode === 'police' && c.role === 'runner' ? HIDE_MOVE_SPEED : WALK_SPEED;
+      const isAi = !c.isPlayer && !c.remote;
+      const D = isAi ? this.getDifficulty(c) : null;
+      let sp = this.chaseMode && c.role === 'tagger' ? TAGGER_SPEED : (this.mode === 'police' && c.role === 'runner' && !!c.hideProp) ? HIDE_PROP_SPEED : WALK_SPEED;
+      if (isAi && D) {
+        if (this.mode === 'ojaemi') sp *= D.oj.speed;
+        else if (this.mode === 'icetag') {
+          if (c.role === 'tagger') sp *= D.ice.tagSpeed;
+          else sp *= D.ice.runSpeed;
+        } else if (this.mode === 'police') {
+          if (c.role === 'tagger') sp *= D.hide.seekSpeed;
+        }
+      }
       if (this.mode === 'police' && this.time <= 30 && c.role === 'tagger') sp *= 1.1;
+      if (this.mode === 'police' && c.role === 'tagger' && this.hideBaseCampT >= BASE_CAMP_LIMIT) sp *= 0.6;
       if (c.motoT > 0) sp *= 1.8;
       if (c.jellyT > 0) sp *= 0.45;
       if (c.throwT >= 0) sp *= 0.7;
@@ -2796,8 +3079,9 @@ export class Game {
     } else if (this.phase === 'playing') {
       this.time -= dt;
       if (this.mode === 'icetag') this.checkIceTagEnd();
-      else if (this.mode === 'police') this.policeT += dt;
-      else {
+      else if (this.mode === 'police') {
+        // 숨바꼭질 승패 판정은 updateHide(dt)에서 실시간으로 처리
+      } else {
         if (this.time <= 0) {
           if (this.scores.red === this.scores.blue) {
             this.overtime = true; this.time = OVERTIME;
@@ -2819,12 +3103,12 @@ export class Game {
     const p = this.player;
     this.updateMouseAim();
     if (!this.demo) p.move.copy(p.status === 'alive' ? this.playerMoveVec() : ZERO);
-    if (this.copHeld(p)) p.move.set(0, 0, 0);
+    if (this.mode === 'police' && this.hidePrepT > 0 && p.role === 'tagger') p.move.set(0, 0, 0);
     for (const c of this.chars) if (!c.isPlayer && !c.remote) this.updateAI(c, dt);
     for (const c of this.chars) this.updateChar(c, dt);
     this.separateChars();
     if (this.mode === 'icetag' && this.phase === 'playing') { this.tagCheck(); this.autoThawCheck(); }
-    if (this.mode === 'police' && this.phase === 'playing') { this.updateHide(dt); this.hideTagCheck(); if (this.time <= 0) this.endRound('runner', 'timeout'); }
+    if (this.mode === 'police' && this.phase === 'playing') this.updateHide(dt);
     if (this.mode === 'ojaemi') { this.updateProjectiles(dt); this.updatePickups(dt); }
     this.updateItems(dt);
     if (this.netRole === 'host') {
@@ -3283,15 +3567,16 @@ export class Game {
       canFreeze: isIce && p.role === 'runner' && this.canAct(p) && p.freezeCd <= 0, freezeCd: p.freezeCd / FREEZE_CD,
       hasBag: p.bag, throwing: p.throwT >= 0, dashCd: p.dashCd / (this.chaseMode && p.role === 'tagger' ? TAGGER_DASH_CD : isPolice && p.role === 'tagger' ? COP_DASH_CD : DASH_CD),
       item: p.item, stunned: p.stun > 0,
-      danger: (isIce && p.role === 'runner' && p.status === 'alive' && !!tg && tg.stun <= 0 && dT < 6.5) || (isPolice && this.copNear(p, 6.5)),
+      danger: (isIce && p.role === 'runner' && p.status === 'alive' && !!tg && tg.stun <= 0 && dT < 6.5) || (isPolice && p.role === 'runner' && p.status === 'alive' && !p.hideSafe && !!this.tagger && this.tagger.pos.distanceTo(p.pos) < 6.5),
       lastAlive: isIce && p.role === 'runner' && p.status === 'alive' && !runners.some((r) => r !== p && r.status === 'alive'),
       spectating: isIce && p.status === 'out' && this.phase === 'playing' ? this.spectateTarget().name : null,
-      taggerName: tg ? tg.name : '', aliveCount: runners.filter((r) => r.status === 'alive').length, frozenCount: runners.filter((r) => r.status === 'frozen').length, outCount: runners.filter((r) => r.status === 'out').length,
+      taggerName: isIce && tg ? tg.name : isPolice ? this.tagger.name : '', aliveCount: runners.filter((r) => r.status === 'alive').length, frozenCount: runners.filter((r) => r.status === 'frozen').length, outCount: runners.filter((r) => r.status === 'out').length,
       red: this.scores.red, blue: this.scores.blue,
       roundResults: this.roundResults.map((r) => ({ ...r })), roundWinner: this.roundWinner, roundReason: this.roundReason,
-      players: this.playerStats(), markers: this.phase === 'playing' || this.phase === 'countdown' ? this.buildMarkers() : [],
+      players: this.playerStats(), markers: this.phase === 'playing' || this.phase === 'countdown' ? (isPolice ? this.buildHideMarkers() : this.buildMarkers()) : [],
       stageGoal: this.stage ? this.stage.goal : null, stageProgress, final: this.finalSummary,
       police: null,
+      hide: isPolice ? this.hideHud() : null,
       hideTransformed: isPolice && p.role === 'runner' && !!p.hideProp,
       hideCanTransform: isPolice && p.role === 'runner' && p.status === 'alive' && p.stun <= 0,
     });

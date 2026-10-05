@@ -173,6 +173,7 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
   const isTagger = hud.mode === 'icetag' && hud.role === 'tagger';
   const isRunner = hud.mode === 'icetag' && hud.role === 'runner';
   const isHideRunner = hud.mode === 'police' && hud.role === 'runner';
+  const isHideTagger = hud.mode === 'police' && hud.role === 'tagger';
   const u = (v: number) => v * ui;
 
   // 모바일과 PC 환경에 맞춘 슬롯 & 패널 크기
@@ -189,12 +190,26 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
       style={{ right: 'env(safe-area-inset-right)', bottom: 'env(safe-area-inset-bottom)', width: u(panelW), height: u(panelH) }}
     >
       <div className="relative w-full h-full pointer-events-auto">
-        {/* MAIN slot: 던지기 (오재미) · 얼음! (도망자) · 안내 (술래 — 몸이 닿으면 잡아요) */}
+        {/* MAIN slot: 던지기 (오재미) · 얼음! (도망자) · 찾았다! (숨바꼭질 술래) · 숨기/해제 (숨바꼭질 도망자) */}
         {hud.mode === 'ojaemi' && (
           <ActionBtn label="던지기" icon="🎯" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#ffa94d,#e8622a)" disabled={st || !hud.hasBag || hud.throwing} onPress={onPrimary} badge={hud.hasBag ? '1' : '0'} keyHint={hint(hud.mode === 'ojaemi' && control === 'mouse' ? '좌클릭' : H.primary)} />
         )}
         {isRunner && (
           <ActionBtn label="얼음!" icon="❄️" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#7fd0ff,#2378d8)" disabled={st || !hud.canFreeze} cooldown={hud.freezeCd} glow={hud.danger && hud.canFreeze && !hud.lastAlive} onPress={onPrimary} keyHint={hint(H.primary)} />
+        )}
+        {isHideTagger && (
+          <ActionBtn
+            label="찾았다!"
+            icon="🔍"
+            size={u(slot.main.size)}
+            style={pos(slot.main)}
+            color="linear-gradient(180deg,#ff6b6b,#d93838)"
+            disabled={st || (hud.hide ? hud.hide.prep > 0 || hud.hide.inspectCd > 0 : false)}
+            cooldown={hud.hide?.inspectCd ?? 0}
+            glow={hud.hide ? hud.hide.prep <= 0 && hud.hide.inspectCd <= 0 : false}
+            onPress={onPrimary}
+            keyHint={hint(H.primary)}
+          />
         )}
         {isHideRunner && (
           <ActionBtn
@@ -203,8 +218,9 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
             size={u(slot.main.size)}
             style={pos(slot.main)}
             color="linear-gradient(180deg,#b99cff,#7657d9)"
-            disabled={st || !hud.hideCanTransform}
-            glow={!hud.hideTransformed && hud.hideCanTransform}
+            disabled={st || (!hud.hideTransformed && !hud.hideCanTransform) || (hud.hide?.meSafe ?? false)}
+            cooldown={hud.hide?.reHideCd ?? 0}
+            glow={!hud.hideTransformed && hud.hideCanTransform && !(hud.hide?.meSafe ?? false)}
             onPress={onPrimary}
             keyHint={hint(H.primary)}
           />
@@ -216,15 +232,6 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
           >
             <span className="leading-none" style={{ fontSize: u(28) }}>👹</span>
             <span className="font-black text-white txt-outline-sm leading-tight mt-0.5" style={{ fontSize: Math.max(10, u(11)) }}>닿으면<br />잡기</span>
-          </div>
-        )}
-        {hud.mode === 'police' && (
-          <div
-            className="absolute rounded-full flex flex-col items-center justify-center text-center pointer-events-none border-[3px] border-dashed border-white/60 bg-slate-900/35"
-            style={{ ...pos(slot.main), width: u(slot.main.size), height: u(slot.main.size) }}
-          >
-            <span className="leading-none" style={{ fontSize: u(28) }}>{hud.role === 'tagger' ? '🚓' : '🏃'}</span>
-            <span className="font-black text-white txt-outline-sm leading-tight mt-0.5" style={{ fontSize: Math.max(10, u(11)) }}>{hud.role === 'tagger' ? <>닿으면<br />잡기</> : <>술래를<br />피하세요</>}</span>
           </div>
         )}
         {/* 땡은 버튼 없이 닿으면 자동 구조. 대시 & 아이템은 모든 모드 / 역할에서 일관된 위치 */}
