@@ -87,7 +87,15 @@ export default function App() {
     <div className="fixed inset-0 bg-[#0f2740]">
       {/* full-bleed on every device; each screen handles its own portrait / landscape / desktop layout */}
       <div className="relative w-full h-full overflow-hidden bg-sky-200">
-        {screen === 'menu' && <MainMenu save={save} setSave={setSave} onPlay={() => { sfx.init(); sfx.click(); setScreen('mode'); }} onStages={() => { sfx.init(); sfx.click(); setScreen('stages'); }} />}
+        {screen === 'menu' && (
+          <MainMenu
+            save={save}
+            setSave={setSave}
+            onPlay={() => { sfx.init(); sfx.click(); setScreen('mode'); }}
+            onMulti={() => { sfx.init(); sfx.click(); setLobbyInit(null); setScreen('lobby'); }}
+            onStages={() => { sfx.init(); sfx.click(); setScreen('stages'); }}
+          />
+        )}
         {screen === 'mode' && <ModeSelect onSelect={(m) => { sfx.click(); setMode(m); setScreen('setup'); }} onBack={() => setScreen('menu')} />}
         {screen === 'setup' && <Setup mode={mode} save={save} onStart={startGame} onMulti={(o) => { sfx.init(); setLobbyInit(o); setScreen('lobby'); }} onBack={() => setScreen('mode')} />}
         {screen === 'stages' && <Stages save={save} onStart={startGame} onBack={() => setScreen('menu')} />}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, Check, ChevronRight, Crown, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, X } from 'lucide-react';
+import { BookOpen, Check, ChevronRight, Crown, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, Users, X } from 'lucide-react';
 import { Preview3D } from './Preview3D';
 import { CharacterViewer } from './CharacterViewer';
 import { CostumeIcon, Portrait } from './Portrait';
@@ -532,7 +532,7 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
 }
 
 // ------------------------------------------------------------ main menu
-export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; setSave: (s: SaveData) => void; onPlay: () => void; onStages: () => void }) {
+export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: SaveData; setSave: (s: SaveData) => void; onPlay: () => void; onMulti?: () => void; onStages: () => void }) {
   const [modal, setModal] = useState<Modal>(null);
 
   const demoCfg = useMemo(() => makeDemoCfg('icetag', 'plaza', { cinematic: true, quality: save.quality }), [save.quality]);
@@ -614,6 +614,23 @@ export function MainMenu({ save, setSave, onPlay, onStages }: { save: SaveData; 
               </span>
               <ChevronRight size={22} className="text-white/90 shrink-0" strokeWidth={2.6} />
             </button>
+
+            {onMulti && (
+              <button className="mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/95 flex items-center px-3 gap-3 press shadow-sm" onClick={onMulti}>
+                <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <Users size={17} strokeWidth={2.3} />
+                </span>
+                <span className="flex-1 text-left min-w-0">
+                  <span className="block text-[15px] font-bold text-slate-800 leading-tight">멀티 모드</span>
+                  <span className="block text-[11px] font-medium text-slate-400 leading-none mt-0.5">친구와 함께 온라인 플레이</span>
+                </span>
+                <span className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 rounded-full px-2 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  ONLINE
+                </span>
+                <ChevronRight size={18} className="text-slate-300" />
+              </button>
+            )}
 
             <button className="mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/90 flex items-center px-3 gap-3 press shadow-sm" onClick={onStages}>
               <span className="w-8 h-8 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center"><MapIcon size={17} strokeWidth={2.3} /></span>
