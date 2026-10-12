@@ -116,6 +116,52 @@ function surfZ(x: number, y: number) {
   const sx = HR * HSX, sy = HR * HSY, sz = HR * HSZ;
   return sz * Math.sqrt(Math.max(0, 1 - (x / sx) ** 2 - (y / sy) ** 2));
 }
+
+/** One continuous white face following the skull, with an unbroken rounded chin. */
+function penguinFace() {
+  const key = 'penguin-face-v2';
+  if (geoCache[key]) return geoCache[key];
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.19);
+  shape.bezierCurveTo(-0.06, 0.19, -0.08, 0.30, -0.21, 0.30);
+  shape.bezierCurveTo(-0.36, 0.30, -0.46, 0.13, -0.46, -0.03);
+  shape.bezierCurveTo(-0.46, -0.24, -0.28, -0.40, 0, -0.40);
+  shape.bezierCurveTo(0.28, -0.40, 0.46, -0.24, 0.46, -0.03);
+  shape.bezierCurveTo(0.46, 0.13, 0.36, 0.30, 0.21, 0.30);
+  shape.bezierCurveTo(0.08, 0.30, 0.06, 0.19, 0, 0.19);
+  const boundary = shape.getPoints(10);
+  boundary.pop(); // the closing vertex duplicates the first point
+  const count = boundary.length, rings = 8, centerY = -0.03;
+  const positions = [0, centerY, surfZ(0, centerY) + 0.009];
+  const indices: number[] = [];
+  for (let ring = 1; ring <= rings; ring++) {
+    const ratio = ring / rings;
+    for (const point of boundary) {
+      const x = point.x * ratio, y = centerY + (point.y - centerY) * ratio;
+      positions.push(x, y, surfZ(x, y) + 0.009);
+    }
+  }
+  for (let i = 0; i < count; i++) indices.push(0, 1 + i, 1 + (i + 1) % count);
+  for (let ring = 1; ring < rings; ring++) {
+    for (let i = 0; i < count; i++) {
+      const next = (i + 1) % count;
+      const a = 1 + (ring - 1) * count + i, d = 1 + (ring - 1) * count + next;
+      const b = 1 + ring * count + i, c = 1 + ring * count + next;
+      indices.push(a, b, c, a, c, d);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const uvs: number[] = [];
+  for (let i = 0; i < positions.length; i += 3) {
+    uvs.push(0.5 + positions[i] / (HR * HSX * 2), 0.5 + positions[i + 1] / (HR * HSY * 2));
+  }
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geoCache[key] = geometry;
+  return geometry;
+}
 /** place a mesh on the head surface facing outward */
 function onFace(m: THREE.Object3D, x: number, y: number, lift = 0) {
   const z = surfZ(x, y) + lift;
@@ -315,13 +361,9 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
 
   // penguin face mask / panda patches / tanuki mask
   if (isPenguin) {
-    // white face mask sits just barely above the skull so the eyes can render on top of it
-    for (const s of [-1, 1]) {
-      const m = mk(sphere(0.22, 20, 16), faceMat, false);
-      m.scale.set(1, 1.15, 0.3);
-      onFace(m, s * 0.14, -0.02, -0.058);
-      head.add(m);
-    }
+    const mask = mk(penguinFace(), faceMat, false);
+    mask.userData.noOutline = true;
+    head.add(mask);
   }
   const darkEyes = isPanda || animal === 'tanuki';
   if (darkEyes) {
@@ -349,7 +391,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   // eyes (with highlights as children so they blink together)
   // layering (front surface offsets): skull 0 < dark patch/penguin mask ≈ +0.01 < sclera ≈ +0.03 < pupil ≈ +0.045
   const eyes: THREE.Mesh[] = [];
-  const eyeLift = darkEyes ? 0.012 : isPenguin ? 0.0 : -0.018;
+  const eyeLift = darkEyes ? 0.012 : isPenguin ? 0.017 : -0.018;
   for (const s of [-1, 1]) {
     if (darkEyes) {
       const sclera = mk(sphere(0.088, 18, 14), std(0xffffff, { rough: 0.3 }), false);
@@ -375,25 +417,36 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
     head.add(e);
     eyes.push(e);
     // brows
-    const brow = mk(capsule(0.016, 0.06), std(isPanda ? 0x26262b : P.accent, { tex: 'soft' }), false);
-    brow.userData.noOutline = true;
-    onFace(brow, s * 0.2, 0.17, 0.004);
-    brow.rotateZ(Math.PI / 2 + s * 0.18);
-    head.add(brow);
+    if (!isPenguin) {
+      const brow = mk(capsule(0.016, 0.06), std(isPanda ? 0x26262b : P.accent, { tex: 'soft' }), false);
+      brow.userData.noOutline = true;
+      onFace(brow, s * 0.2, 0.17, 0.004);
+      brow.rotateZ(Math.PI / 2 + s * 0.18);
+      head.add(brow);
+    }
     // blush
     const bl = mk(sphere(0.07, 16, 10), blushMat, false);
     bl.scale.set(1.3, 0.75, 0.25);
-    onFace(bl, s * 0.33, -0.1, -0.005);
+    onFace(bl, s * 0.33, -0.1, isPenguin ? 0.018 : -0.005);
     head.add(bl);
   }
 
   // nose / beak + mouth
   if (isPenguin) {
-    const beak = mk(cone(0.075, 0.2, 14), std(P.accent, { rough: 0.4 }));
-    beak.rotation.x = Math.PI / 2;
-    beak.scale.set(1.3, 1, 0.7);
-    beak.position.set(0, -0.1, surfZ(0, -0.1) + 0.07);
-    head.add(beak);
+    const beakZ = surfZ(0, -0.10) + 0.035;
+    const upper = mk(sphere(0.10, 24, 16), std(P.accent, { kind: 'char', spec: 0.35 }));
+    upper.scale.set(1.12, 0.55, 0.90);
+    upper.position.set(0, -0.085, beakZ);
+    upper.userData.noOutline = true;
+    const lower = mk(sphere(0.08, 20, 14), std(0xee8d29, { kind: 'char' }));
+    lower.scale.set(1.18, 0.40, 0.90);
+    lower.position.set(0, -0.155, beakZ + 0.005);
+    lower.userData.noOutline = true;
+    const mouth = mk(sphere(0.08, 20, 12), std(0x6b321d, { kind: 'char', rim: 0 }));
+    mouth.scale.set(1.08, 0.18, 0.72);
+    mouth.position.set(0, -0.131, beakZ + 0.035);
+    mouth.userData.noOutline = true;
+    head.add(upper, mouth, lower);
   } else {
     const nose = mk(sphere(0.052, 16, 12), noseMat, false);
     nose.scale.set(1.35, 1, 0.9);
