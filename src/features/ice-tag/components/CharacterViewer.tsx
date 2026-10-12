@@ -103,11 +103,12 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
     const el = mountRef.current;
     if (!el) return;
     const menu = view === 'menu';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     el.appendChild(renderer.domElement);
     renderer.domElement.style.display = 'block';
     renderer.domElement.style.touchAction = 'pan-y';
@@ -115,8 +116,9 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
     const scene = new THREE.Scene();
     setupRenderer(renderer, scene, 0.65);
     const camera = new THREE.PerspectiveCamera(menu ? 30 : 28, 1, 0.1, 50);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xa8d08a, 1.1));
-    const key = new THREE.DirectionalLight(0xfff3e0, 2.9);
+    renderer.toneMappingExposure = 1.02;
+    scene.add(new THREE.HemisphereLight(0xfff8ed, 0xb4c7dd, 1.25));
+    const key = new THREE.DirectionalLight(0xfff1db, 2.15);
     key.position.set(2.5, 5, 4);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -124,7 +126,10 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
     key.shadow.bias = -0.0006;
     key.shadow.radius = 4;
     scene.add(key);
-    // single key light keeps the 2-tone cel ramp clean; rim comes from the toon shader
+    // A subtle back light separates dark fur and accessories from the village.
+    const rim = new THREE.DirectionalLight(0xc9eeff, 0.45);
+    rim.position.set(-3, 3, -4);
+    scene.add(rim);
 
     const stage = new THREE.Group();
     scene.add(stage);
@@ -147,7 +152,7 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
       model.body.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
       if (menu) model.root.scale.setScalar(1.08);
       stage.add(model.root);
-      hopT = 0.6;
+      hopT = reducedMotion.matches ? 0 : 0.6;
     };
     api.current = { setAnimal };
 
@@ -176,10 +181,10 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
       const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
       if (menu) {
         // elevated hero angle: pedestal top visible, character centred slightly above middle
-        const halfH = 1.45, halfW = 1.6;
+        const halfH = 1.35, halfW = 1.6;
         const dist = Math.max(halfH / t, halfW / (t * camera.aspect));
         camera.position.set(0, 0.8 + dist * 0.3, dist);
-        camera.lookAt(0, 0.62, 0);
+        camera.lookAt(0, 0.9, 0);
       } else {
         const halfH = 1.35, halfW = 1.3;
         const dist = Math.max(halfH / t, halfW / (t * camera.aspect)) + 0.6;
@@ -200,12 +205,15 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
       t += dt;
       TOON_TIME.value = t;
       if (!dragging) {
-        yaw += yawVel;
-        yawVel *= 0.92;
+        yaw += yawVel * dt * 60;
+        yawVel *= Math.exp(-dt * 5);
         idleT += dt;
-        if (idleT > 2.5) yaw += (Math.sin(t * 0.4) * 0.45 - yaw) * dt * 0.8;
+        if (idleT > 2.5 && !reducedMotion.matches) {
+          if (menu) yaw += dt * 0.22;
+          else yaw += (Math.sin(t * 0.4) * 0.45 - yaw) * dt * 0.8;
+        }
       }
-      stage.rotation.y = yaw;
+      if (model) model.root.rotation.y = yaw;
       if (model) {
         const m = model;
         const b = m.body;
@@ -213,16 +221,16 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
         m.head.rotation.set(0, 0, 0);
         m.armL.rotation.set(0, 0, 0.25); m.armR.rotation.set(0, 0, -0.25);
         m.legL.rotation.set(0, 0, 0); m.legR.rotation.set(0, 0, 0);
-        const br = Math.sin(t * 2.4);
+        const br = reducedMotion.matches ? 0 : Math.sin(t * 2.4);
         b.scale.set(1 + br * 0.012, 1 - br * 0.018, 1);
-        m.head.rotation.z = Math.sin(t * 1.2) * 0.06;
-        m.head.rotation.y = Math.sin(t * 0.7) * 0.15;
+        m.head.rotation.z = reducedMotion.matches ? 0 : Math.sin(t * 1.2) * 0.06;
+        m.head.rotation.y = reducedMotion.matches ? 0 : Math.sin(t * 0.7) * 0.15;
         blinkT -= dt;
         const blink = blinkT < 0;
         if (blinkT < -0.12) blinkT = 2 + Math.random() * 2.5;
         for (const e of m.eyes) e.scale.y = blink ? 0.15 : 1.15;
         waveT -= dt;
-        if (waveT < 0) {
+        if (waveT < 0 && !reducedMotion.matches) {
           const k = Math.min(1, -waveT / 0.25) * Math.min(1, (1.6 + waveT) / 0.25);
           m.armL.rotation.z = 0.25 + k * 2.3;
           m.armL.rotation.x = -Math.sin(t * 14) * 0.35 * k;
@@ -247,6 +255,11 @@ export function CharacterViewer({ animal, team = 'blue', className, view = 'moda
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointermove', onMove);
+      renderer.domElement.removeEventListener('pointerup', onUp);
+      renderer.domElement.removeEventListener('pointercancel', onUp);
+      renderer.domElement.removeEventListener('dblclick', onTap);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

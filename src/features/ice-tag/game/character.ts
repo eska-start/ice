@@ -32,6 +32,22 @@ function sphere(r: number, w = 28, h = 20) {
   const k = `s${r}_${w}_${h}`;
   return (geoCache[k] ??= new THREE.SphereGeometry(r, w, h));
 }
+/** A continuous pear silhouette instead of a visibly stacked ball torso. Cached for every player. */
+function pearTorso() {
+  const key = 'pear-torso-v1';
+  if (!geoCache[key]) {
+    const geometry = sphere(0.36).clone();
+    const position = geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      const y = position.getY(i) / 0.36;
+      const width = 1 - y * 0.11 - y * y * 0.05;
+      position.setXYZ(i, position.getX(i) * width, position.getY(i), position.getZ(i) * width);
+    }
+    geometry.computeVertexNormals();
+    geoCache[key] = geometry;
+  }
+  return geoCache[key];
+}
 function capsule(r: number, len: number) {
   const k = `cap${r}_${len}`;
   return (geoCache[k] ??= new THREE.CapsuleGeometry(r, len, 6, 14));
@@ -77,6 +93,14 @@ const PAL: Record<Animal, Palette> = {
 const MUZZLE: Record<Animal, [number, number, number]> = {
   dog: [1.1, 0.95, 1.05], cat: [0.82, 0.72, 0.75], rabbit: [0.72, 0.68, 0.7], bear: [1.05, 0.9, 1.0], fox: [0.9, 0.8, 1.15],
   penguin: [0, 0, 0], deer: [0.95, 0.85, 1.0], hamster: [0.78, 0.7, 0.7], tanuki: [0.95, 0.82, 0.95], panda: [0.92, 0.8, 0.85],
+};
+
+/** Scale the complete head so eyes, ears and equipped accessories remain aligned. */
+const HEAD_SHAPE: Record<Animal, [number, number, number]> = {
+  dog: [1, 1, 1], cat: [1.02, 0.98, 1], rabbit: [0.94, 1.04, 0.94],
+  bear: [1.08, 0.96, 1.05], fox: [1, 0.94, 1.04], penguin: [0.96, 1.08, 0.95],
+  deer: [0.94, 1.02, 1.02], hamster: [1.12, 0.9, 1.04], tanuki: [1.03, 0.94, 1.03],
+  panda: [1.08, 1, 1.02],
 };
 
 function mk(g: THREE.BufferGeometry, m: THREE.Material, cast = true) {
@@ -149,9 +173,9 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   const tc = TEAM_COLORS[team];
   const top = topStyle(outfit?.top);
   const bottom = bottomStyle(outfit?.bottom);
-  const furMat = std(P.fur, { tex: 'fur', rx: 2 });
+  const furMat = std(P.fur, { tex: 'fur', rx: 2, shadow: 0xd9c5d8, rim: 0.22 });
   // anime-style faces stay mostly lit: the terminator is pushed far back
-  const faceMat = std(P.face, { tex: 'fur', rx: 2, step: 0.28 });
+  const faceMat = std(P.face, { tex: 'soft', step: 0.52, shadow: 0xe5cfda, rim: 0.16 });
   const accMat = std(P.accent, { tex: 'fur', rx: 2 });
   const innerMat = std(P.inner, { tex: 'soft' });
   // private instances: team colors are mutated per character by setTeam()
@@ -208,7 +232,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   const legR = mkLeg(-0.15);
 
   // ---- torso: pear shirt + shorts
-  const torso = mk(sphere(0.36), shirtMat);
+  const torso = mk(pearTorso(), shirtMat);
   torso.scale.set(1, 1.02, 0.9);
   torso.position.y = 0.64;
   body.add(torso);
@@ -283,6 +307,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   // ---- head
   const head = new THREE.Group();
   head.position.y = 1.28;
+  head.scale.set(...HEAD_SHAPE[animal]);
   body.add(head);
   const skull = mk(sphere(HR, 36, 28), furMat);
   skull.scale.set(HSX, HSY, HSZ);
@@ -335,16 +360,23 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
     const e = mk(sphere(0.075, 20, 16), eyeMat, false);
     onFace(e, s * 0.19, 0.04, eyeLift);
     e.scale.set(0.85, 1.15, 0.45);
+    e.userData.noOutline = true;
     const sh1 = new THREE.Mesh(sphere(0.024, 10, 8), shineMat);
-    sh1.position.set(0.022, 0.03, 0.072);
+    // Highlights follow the actual ellipsoid surface (the old ones floated in front of the pupil).
+    sh1.position.set(-0.018, 0.025, 0.066);
+    sh1.scale.set(0.8, 1.15, 0.3);
+    sh1.userData.noOutline = true;
     e.add(sh1);
     const sh2 = new THREE.Mesh(sphere(0.011, 8, 6), shineMat);
-    sh2.position.set(-0.02, -0.03, 0.074);
+    sh2.position.set(0.023, -0.022, 0.067);
+    sh2.scale.z = 0.3;
+    sh2.userData.noOutline = true;
     e.add(sh2);
     head.add(e);
     eyes.push(e);
     // brows
     const brow = mk(capsule(0.016, 0.06), std(isPanda ? 0x26262b : P.accent, { tex: 'soft' }), false);
+    brow.userData.noOutline = true;
     onFace(brow, s * 0.2, 0.17, 0.004);
     brow.rotateZ(Math.PI / 2 + s * 0.18);
     head.add(brow);
@@ -368,6 +400,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
     nose.position.set(0, mx > 0 ? -0.065 : -0.07, muzzleFront - 0.01);
     head.add(nose);
     const mouth = mk(new THREE.TorusGeometry(0.042, 0.011, 6, 14, Math.PI), std(0x3a2522, { rough: 0.5 }), false);
+    mouth.userData.noOutline = true;
     mouth.rotation.z = Math.PI;
     mouth.position.set(0, -0.155, muzzleFront - (mx > 0 ? 0.025 : 0.04));
     head.add(mouth);
@@ -434,10 +467,14 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
       i.rotation.z = -s * 0.32;
       head.add(i);
       if (animal === 'fox') {
-        const tip = mk(cone(0.07, 0.12, 12), accMat, false);
-        tip.scale.set(1, 1, 0.6);
-        tip.position.set(s * 0.36, 0.6, -0.03);
-        tip.rotation.z = -s * 0.32;
+        // The dark cap shares the outer ear's axis and apex instead of floating above it.
+        const tipHeight = h * 0.32;
+        const tip = mk(cone(0.15 * tipHeight / h, tipHeight, 18), accMat, false);
+        tip.scale.copy(e.scale).multiplyScalar(1.015);
+        tip.position.copy(e.position);
+        tip.rotation.copy(e.rotation);
+        tip.translateY((h - tipHeight) / 2);
+        tip.userData.outlineScale = 0.65;
         head.add(tip);
       }
     }

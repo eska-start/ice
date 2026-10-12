@@ -26,6 +26,8 @@ export interface ToonParams {
   shadowLevel: number;
   /** terminator position in half-lambert space (lower = more lit area) */
   step: number;
+  /** Broad, soft transition on characters; zero retains hard cel shading on scenery. */
+  softness: number;
   rim: number;
   rimColor: number;
   spec: number;
@@ -35,11 +37,11 @@ export interface ToonParams {
 
 export const TOON_DEFAULTS: Record<ToonKind, ToonParams> = {
   // warm rose-violet shadows keep fur & skin cute and clean (anime faces are mostly lit)
-  char: { shadowTint: 0xd6b0cc, shadowSat: 1.32, shadowLevel: 0.46, step: 0.36, rim: 0.34, rimColor: 0xfff3e2, spec: 0, wind: 0, windBase: 0 },
+  char: { shadowTint: 0xd6b0cc, shadowSat: 1.2, shadowLevel: 0.52, step: 0.52, softness: 0.32, rim: 0.24, rimColor: 0xfff3e2, spec: 0, wind: 0, windBase: 0 },
   // cool blue-violet ambient-occlusion look for buildings and props
-  world: { shadowTint: 0xa9b3e2, shadowSat: 1.16, shadowLevel: 0.42, step: 0.47, rim: 0.1, rimColor: 0xfff0d6, spec: 0, wind: 0, windBase: 0 },
+  world: { shadowTint: 0xa9b3e2, shadowSat: 1.16, shadowLevel: 0.42, step: 0.47, softness: 0, rim: 0.1, rimColor: 0xfff0d6, spec: 0, wind: 0, windBase: 0 },
   // teal-shifted foliage shadows + yellow sun-kissed rims
-  leaf: { shadowTint: 0x8fbac8, shadowSat: 1.22, shadowLevel: 0.5, step: 0.43, rim: 0.22, rimColor: 0xfff8c8, spec: 0, wind: 0, windBase: 0 },
+  leaf: { shadowTint: 0x8fbac8, shadowSat: 1.22, shadowLevel: 0.5, step: 0.43, softness: 0, rim: 0.22, rimColor: 0xfff8c8, spec: 0, wind: 0, windBase: 0 },
 };
 
 // --------------------------------------------------------------------------- cel lighting chunk
@@ -49,6 +51,7 @@ uniform vec3 uShadowTint;
 uniform float uShadowSat;
 uniform float uShadowLevel;
 uniform float uStep;
+uniform float uSoftness;
 uniform float uRim;
 uniform vec3 uRimColor;
 uniform float uSpec;
@@ -65,7 +68,7 @@ vec3 toonShadowColor( const in vec3 c ) {
 
 void RE_Direct_Toon( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in ToonMaterial material, inout ReflectedLight reflectedLight ) {
   float x = dot( geometryNormal, directLight.direction ) * 0.5 + 0.5;
-  float aa = max( fwidth( x ), 0.0015 ) * 1.25;
+  float aa = max( max( fwidth( x ), 0.0015 ) * 1.25, uSoftness );
   float lit = smoothstep( uStep - aa, uStep + aa, x );
   vec3 base = mix( toonShadowColor( material.diffuseColor ) * uShadowLevel, material.diffuseColor, lit );
   reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( base );
@@ -111,6 +114,7 @@ export function applyToon(m: THREE.MeshToonMaterial, kind: ToonKind, over: Parti
     uShadowSat: { value: p.shadowSat },
     uShadowLevel: { value: p.shadowLevel },
     uStep: { value: p.step },
+    uSoftness: { value: p.softness },
     uRim: { value: p.rim },
     uRimColor: { value: new THREE.Color(p.rimColor) },
     uSpec: { value: p.spec },
