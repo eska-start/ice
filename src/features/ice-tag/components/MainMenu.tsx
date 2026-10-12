@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import Image from 'next/image';
+import { ItemIcon, RasterIcon, type RasterIconName } from './RasterUI';
 import { BookOpen, Check, ChevronRight, Crown, Footprints, Glasses, Lock, Map as MapIcon, PawPrint, Play, Settings, Shirt, ShoppingBag, Snowflake, Sparkles, Star, Users, X } from 'lucide-react';
 import { Preview3D } from './Preview3D';
 import { CharacterViewer } from './CharacterViewer';
@@ -10,18 +12,13 @@ import { redeemCoupon, totalStars } from '../game/save';
 import { COSTUMES, COSTUME_MAP, SLOT_INFO, costumesOf } from '../game/costumes';
 import { KEY_HINT, MOUSE_HINT } from '../game/keys';
 import { ALL_ANIMALS, ANIMAL_INFO, ITEM_INFO, STAGES } from '../game/types';
-import type { Animal, CostumeSlot, Outfit } from '../game/types';
+import type { Animal, CostumeSlot, ItemType, Outfit } from '../game/types';
 
 type Modal = null | 'char' | 'shop' | 'wardrobe' | 'collection' | 'settings' | 'howto';
 
 // ------------------------------------------------------------ small parts
 function Coin({ size = 18 }: { size?: number }) {
-  return (
-    <span
-      className="inline-block rounded-full shrink-0"
-      style={{ width: size, height: size, background: 'radial-gradient(circle at 35% 30%, #fff6c2 0%, #ffd23f 45%, #f0a414 100%)', boxShadow: 'inset 0 0 0 1.5px rgba(210,130,10,0.8)' }}
-    />
-  );
+  return <RasterIcon name="coin" size={size} />;
 }
 
 function Avatar({ animal, size = 44, outfit }: { animal: Animal; size?: number; outfit?: Outfit }) {
@@ -36,17 +33,12 @@ function Avatar({ animal, size = 44, outfit }: { animal: Animal; size?: number; 
 export function Logo({ small }: { small?: boolean }) {
   return (
     <div className="relative mx-auto text-center select-none">
-      <div className="text-white/90 font-semibold tracking-[0.42em] pl-[0.42em]" style={{ fontSize: small ? 10 : 11, textShadow: '0 1px 6px rgba(10,50,100,0.45)' }}>
-        ANIMAL VILLAGE
-      </div>
-      <div className="relative inline-block">
-        <h1 className={`font-display title-ice leading-[0.95] ${small ? 'text-[52px]' : 'text-[clamp(64px,20vw,92px)] short:text-[56px] tiny:text-[46px] wide:text-[104px]'}`}>얼음땡</h1>
-        <Snowflake className="absolute -right-6 top-1 text-white drop-shadow-[0_2px_6px_rgba(20,80,160,0.5)]" size={small ? 18 : 24} strokeWidth={2.4} />
-      </div>
+      <h1 className="sr-only">동물마을 얼음땡</h1>
+      <Image src="/ui/title-logo.png" alt="동물마을 얼음땡" width={960} height={480} unoptimized priority className={`game-title-logo ${small ? 'game-title-logo-small' : ''}`} />
       {!small && (
         <div className="mt-1 inline-flex items-center gap-2 text-white text-[13px] font-medium tiny:hidden" style={{ textShadow: '0 1px 6px rgba(10,50,100,0.5)' }}>
           <span className="h-px w-6 bg-white/70" />
-          함께 뛰어놀아요
+          얼음땡 · 오재미, 함께 놀아요
           <span className="h-px w-6 bg-white/70" />
         </div>
       )}
@@ -520,8 +512,8 @@ export function HowtoModal({ onClose }: { onClose: () => void }) {
         <section className="bg-slate-50 rounded-2xl p-4">
           <div className="text-slate-900 font-bold text-[15px] mb-2">아이템</div>
           <div className="space-y-1.5">
-            {Object.values(ITEM_INFO).map((it) => (
-              <div key={it.name} className="flex items-center gap-2"><span className="text-base w-6 text-center">{it.emoji}</span><b className="w-16 text-slate-800">{it.name}</b><span>{it.desc}</span></div>
+            {Object.entries(ITEM_INFO).map(([item, it]) => (
+              <div key={it.name} className="flex items-center gap-2"><ItemIcon item={item as ItemType} size={20} /><b className="w-16 text-slate-800">{it.name}</b><span>{it.desc}</span></div>
             ))}
           </div>
           <div className="text-xs text-slate-400 mt-2">아이템으로는 탈락하지 않아요</div>
@@ -542,15 +534,15 @@ export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: S
   const newShop = ALL_ANIMALS.some((a) => !save.owned.includes(a) && save.coins >= ANIMAL_INFO[a].price)
     || COSTUMES.some((c) => !save.costumes.includes(c.id) && save.coins >= c.price);
 
-  const nav: [Modal, typeof PawPrint, string, boolean][] = [
-    ['char', PawPrint, '캐릭터', false],
-    ['shop', ShoppingBag, '상점', newShop],
-    ['collection', BookOpen, '컬렉션', false],
-    ['settings', Settings, '설정', false],
+  const nav: [Modal, RasterIconName, string, boolean][] = [
+    ['char', 'paw', '캐릭터', false],
+    ['shop', 'shop', '상점', newShop],
+    ['collection', 'book', '컬렉션', false],
+    ['settings', 'settings', '설정', false],
   ];
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-sky-300">
+    <div className="title-screen absolute inset-0 overflow-hidden bg-sky-300">
       <Preview3D cfg={demoCfg} className="absolute inset-0" />
       {/* soft vignette for legibility */}
       <div className="absolute inset-x-0 top-0 h-48 pointer-events-none bg-gradient-to-b from-sky-900/35 via-sky-900/10 to-transparent" />
@@ -574,7 +566,7 @@ export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: S
           </button>
           <div className="flex gap-1.5 shrink-0 items-center">
             <div className="glass-dark rounded-full flex items-center gap-1.5 pl-1.5 pr-3 h-8 text-white text-sm font-bold tabular-nums"><Coin />{save.coins}</div>
-            <div className="glass-dark rounded-full flex items-center gap-1.5 pl-2 pr-3 h-8 text-white text-sm font-bold tabular-nums"><Star size={15} className="text-amber-300" fill="currentColor" strokeWidth={0} />{stars}</div>
+            <div className="glass-dark rounded-full flex items-center gap-1.5 pl-2 pr-3 h-8 text-white text-sm font-bold tabular-nums"><RasterIcon name="star" size={20} />{stars}</div>
           </div>
         </div>
 
@@ -604,46 +596,46 @@ export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: S
         {/* action panel: bottom sheet in portrait, right-hand column in landscape */}
         <div className="shrink-0 px-3 mt-3 landscape:mt-0 landscape:px-0 landscape:w-[min(420px,44vw)] landscape:flex landscape:flex-col landscape:justify-center wide:w-[min(440px,36vw)]">
           <div className="glass rounded-[28px] p-3 max-w-md mx-auto w-full landscape:max-w-none short:p-2.5 short:rounded-[24px]">
-            <button className="cta w-full rounded-[20px] h-[68px] [@media(max-height:680px)]:h-14 short:!h-[52px] wide:h-[76px] flex items-center px-4 gap-3 text-left" onClick={onPlay}>
+            <button className="art-button art-button-orange cta w-full rounded-[20px] h-[68px] [@media(max-height:680px)]:h-14 short:!h-[52px] wide:h-[76px] flex items-center px-4 gap-3 text-left" onClick={onPlay}>
               <span className="w-11 h-11 rounded-full bg-white/25 flex items-center justify-center shrink-0 ring-1 ring-white/40">
-                <Play size={20} className="text-white translate-x-[1px]" fill="currentColor" strokeWidth={0} />
+                <RasterIcon name="play" size={36} />
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-white text-[22px] font-extrabold leading-tight tracking-tight">게임 시작</span>
                 <span className="block text-white/85 text-xs font-medium [@media(max-height:620px)]:hidden">얼음땡 · 오재미</span>
               </span>
-              <ChevronRight size={22} className="text-white/90 shrink-0" strokeWidth={2.6} />
+              <RasterIcon name="right" size={28} />
             </button>
 
             {onMulti && (
-              <button className="mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/95 flex items-center px-3 gap-3 press shadow-sm" onClick={onMulti}>
+              <button className="art-button art-button-cream mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/95 flex items-center px-3 gap-3 press shadow-sm" onClick={onMulti}>
                 <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                  <Users size={17} strokeWidth={2.3} />
+                  <RasterIcon name="friends" size={32} />
                 </span>
                 <span className="flex-1 text-left min-w-0">
-                  <span className="block text-[15px] font-bold text-slate-800 leading-tight">멀티 모드</span>
+                  <span className="block text-[15px] font-bold text-slate-800 leading-tight">친구와 하기</span>
                   <span className="block text-[11px] font-medium text-slate-400 leading-none mt-0.5">친구와 함께 온라인 플레이</span>
                 </span>
                 <span className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 rounded-full px-2 py-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  ONLINE
+                  온라인
                 </span>
-                <ChevronRight size={18} className="text-slate-300" />
+                <RasterIcon name="right" size={24} />
               </button>
             )}
 
-            <button className="mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/90 flex items-center px-3 gap-3 press shadow-sm" onClick={onStages}>
-              <span className="w-8 h-8 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center"><MapIcon size={17} strokeWidth={2.3} /></span>
+            <button className="art-button art-button-mint mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/90 flex items-center px-3 gap-3 press shadow-sm" onClick={onStages}>
+              <span className="w-8 h-8 rounded-xl flex items-center justify-center"><RasterIcon name="map" size={32} /></span>
               <span className="flex-1 text-left text-[15px] font-bold text-slate-800">스테이지 모드</span>
-              <span className="flex items-center gap-1 text-xs font-bold text-amber-500 bg-amber-50 rounded-full px-2 py-1"><Star size={12} fill="currentColor" strokeWidth={0} />{stars}/12</span>
-              <ChevronRight size={18} className="text-slate-300" />
+              <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 rounded-full px-2 py-1"><RasterIcon name="star" size={18} />{stars}/12</span>
+              <RasterIcon name="right" size={24} />
             </button>
 
             <div className="grid grid-cols-4 mt-2 pt-2 border-t border-slate-900/5 short:mt-1.5 short:pt-1.5">
-              {nav.map(([m, Icon, label, dot]) => (
+              {nav.map(([m, icon, label, dot]) => (
                 <button key={label} className="relative flex flex-col items-center gap-1 py-1 short:py-0.5 press" onClick={() => setModal(m)}>
                   <span className="w-10 h-10 short:w-9 short:h-9 rounded-2xl bg-slate-900/[0.05] flex items-center justify-center text-slate-700">
-                    <Icon size={20} strokeWidth={2.1} />
+                    <RasterIcon name={icon} size={36} />
                   </span>
                   <span className="text-[11px] font-semibold text-slate-600">{label}</span>
                   {dot && <span className="absolute top-0.5 right-[22%] w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />}
