@@ -596,7 +596,7 @@ export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: S
         {/* action panel: bottom sheet in portrait, right-hand column in landscape */}
         <div className="shrink-0 px-3 mt-3 landscape:mt-0 landscape:px-0 landscape:w-[min(420px,44vw)] landscape:flex landscape:flex-col landscape:justify-center wide:w-[min(440px,36vw)]">
           <div className="glass rounded-[28px] p-3 max-w-md mx-auto w-full landscape:max-w-none short:p-2.5 short:rounded-[24px]">
-            <button className="art-button art-button-orange cta w-full rounded-[20px] h-[68px] [@media(max-height:680px)]:h-14 short:!h-[52px] wide:h-[76px] flex items-center px-4 gap-3 text-left" onClick={onPlay}>
+            <button className="cta w-full rounded-[20px] h-[68px] [@media(max-height:680px)]:h-14 short:!h-[52px] wide:h-[76px] flex items-center px-4 gap-3 text-left" onClick={onPlay}>
               <span className="w-11 h-11 rounded-full bg-white/25 flex items-center justify-center shrink-0 ring-1 ring-white/40">
                 <RasterIcon name="play" size={36} />
               </span>
@@ -608,7 +608,7 @@ export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: S
             </button>
 
             {onMulti && (
-              <button className="art-button art-button-cream mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/95 flex items-center px-3 gap-3 press shadow-sm" onClick={onMulti}>
+              <button className="mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/95 flex items-center px-3 gap-3 press shadow-sm" onClick={onMulti}>
                 <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
                   <RasterIcon name="friends" size={32} />
                 </span>
@@ -624,7 +624,7 @@ export function MainMenu({ save, setSave, onPlay, onMulti, onStages }: { save: S
               </button>
             )}
 
-            <button className="art-button art-button-mint mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/90 flex items-center px-3 gap-3 press shadow-sm" onClick={onStages}>
+            <button className="mt-2 w-full h-12 short:h-11 rounded-2xl bg-white/90 flex items-center px-3 gap-3 press shadow-sm" onClick={onStages}>
               <span className="w-8 h-8 rounded-xl flex items-center justify-center"><RasterIcon name="map" size={32} /></span>
               <span className="flex-1 text-left text-[15px] font-bold text-slate-800">스테이지 모드</span>
               <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 rounded-full px-2 py-1"><RasterIcon name="star" size={18} />{stars}/12</span>

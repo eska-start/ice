@@ -146,14 +146,6 @@ body,
 .raster-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; background-repeat: no-repeat; pointer-events: none; clip-path: inset(6%); }
 .game-title-logo { display: block; width: min(300px, 76vw); height: auto; max-height: 150px; object-fit: contain; margin: 0 auto; }
 .game-title-logo-small { width: 170px; max-height: 85px; }
-.title-screen .glass { background: linear-gradient(180deg,rgba(255,252,236,.94),rgba(255,246,222,.91)); border-color: #fff; }
-.title-screen .art-button { background-image: url('/ui/button-atlas.png'); background-repeat: no-repeat; background-size: 200% 400%; background-color: transparent; box-shadow: none; border-radius: 0; padding-left: 24px; padding-right: 22px; }
-.title-screen .art-button-orange { background-position: 0 0; }
-.title-screen .art-button-orange span { color: #6d3717; }
-.title-screen .art-button-cream { background-position: 0 33.333333%; }
-.title-screen .art-button-mint { background-position: 100% 33.333333%; }
-.title-screen .art-button::after { display: none; }
-.title-screen .art-button > span:first-child { background: none; box-shadow: none; --tw-ring-shadow: 0 0 transparent; }
 .title-screen button:focus-visible { outline: 3px solid #276681; outline-offset: 3px; }
 @media (max-height: 740px) and (orientation: portrait) { .game-title-logo { max-height: 110px; width: 230px; } }
 @media (orientation: landscape) { .game-title-logo { max-height: 18dvh; width: min(340px,40vw); } }
