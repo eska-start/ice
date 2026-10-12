@@ -32,6 +32,22 @@ function sphere(r: number, w = 28, h = 20) {
   const k = `s${r}_${w}_${h}`;
   return (geoCache[k] ??= new THREE.SphereGeometry(r, w, h));
 }
+/** A continuous pear silhouette instead of a visibly stacked ball torso. Cached for every player. */
+function pearTorso() {
+  const key = 'pear-torso-v1';
+  if (!geoCache[key]) {
+    const geometry = sphere(0.36).clone();
+    const position = geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      const y = position.getY(i) / 0.36;
+      const width = 1 - y * 0.11 - y * y * 0.05;
+      position.setXYZ(i, position.getX(i) * width, position.getY(i), position.getZ(i) * width);
+    }
+    geometry.computeVertexNormals();
+    geoCache[key] = geometry;
+  }
+  return geoCache[key];
+}
 function capsule(r: number, len: number) {
   const k = `cap${r}_${len}`;
   return (geoCache[k] ??= new THREE.CapsuleGeometry(r, len, 6, 14));
@@ -79,6 +95,14 @@ const MUZZLE: Record<Animal, [number, number, number]> = {
   penguin: [0, 0, 0], deer: [0.95, 0.85, 1.0], hamster: [0.78, 0.7, 0.7], tanuki: [0.95, 0.82, 0.95], panda: [0.92, 0.8, 0.85],
 };
 
+/** Scale the complete head so eyes, ears and equipped accessories remain aligned. */
+const HEAD_SHAPE: Record<Animal, [number, number, number]> = {
+  dog: [1, 1, 1], cat: [1.02, 0.98, 1], rabbit: [0.94, 1.04, 0.94],
+  bear: [1.08, 0.96, 1.05], fox: [1, 0.94, 1.04], penguin: [0.96, 1.08, 0.95],
+  deer: [0.94, 1.02, 1.02], hamster: [1.12, 0.9, 1.04], tanuki: [1.03, 0.94, 1.03],
+  panda: [1.08, 1, 1.02],
+};
+
 function mk(g: THREE.BufferGeometry, m: THREE.Material, cast = true) {
   const o = new THREE.Mesh(g, m);
   o.castShadow = cast;
@@ -91,6 +115,52 @@ const HR = 0.52, HSX = 1.1, HSY = 0.95, HSZ = 1.0;
 function surfZ(x: number, y: number) {
   const sx = HR * HSX, sy = HR * HSY, sz = HR * HSZ;
   return sz * Math.sqrt(Math.max(0, 1 - (x / sx) ** 2 - (y / sy) ** 2));
+}
+
+/** One continuous white face following the skull, with an unbroken rounded chin. */
+function penguinFace() {
+  const key = 'penguin-face-v2';
+  if (geoCache[key]) return geoCache[key];
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.19);
+  shape.bezierCurveTo(-0.06, 0.19, -0.08, 0.30, -0.21, 0.30);
+  shape.bezierCurveTo(-0.36, 0.30, -0.46, 0.13, -0.46, -0.03);
+  shape.bezierCurveTo(-0.46, -0.24, -0.28, -0.40, 0, -0.40);
+  shape.bezierCurveTo(0.28, -0.40, 0.46, -0.24, 0.46, -0.03);
+  shape.bezierCurveTo(0.46, 0.13, 0.36, 0.30, 0.21, 0.30);
+  shape.bezierCurveTo(0.08, 0.30, 0.06, 0.19, 0, 0.19);
+  const boundary = shape.getPoints(10);
+  boundary.pop(); // the closing vertex duplicates the first point
+  const count = boundary.length, rings = 8, centerY = -0.03;
+  const positions = [0, centerY, surfZ(0, centerY) + 0.009];
+  const indices: number[] = [];
+  for (let ring = 1; ring <= rings; ring++) {
+    const ratio = ring / rings;
+    for (const point of boundary) {
+      const x = point.x * ratio, y = centerY + (point.y - centerY) * ratio;
+      positions.push(x, y, surfZ(x, y) + 0.009);
+    }
+  }
+  for (let i = 0; i < count; i++) indices.push(0, 1 + i, 1 + (i + 1) % count);
+  for (let ring = 1; ring < rings; ring++) {
+    for (let i = 0; i < count; i++) {
+      const next = (i + 1) % count;
+      const a = 1 + (ring - 1) * count + i, d = 1 + (ring - 1) * count + next;
+      const b = 1 + ring * count + i, c = 1 + ring * count + next;
+      indices.push(a, b, c, a, c, d);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const uvs: number[] = [];
+  for (let i = 0; i < positions.length; i += 3) {
+    uvs.push(0.5 + positions[i] / (HR * HSX * 2), 0.5 + positions[i + 1] / (HR * HSY * 2));
+  }
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geoCache[key] = geometry;
+  return geometry;
 }
 /** place a mesh on the head surface facing outward */
 function onFace(m: THREE.Object3D, x: number, y: number, lift = 0) {
@@ -149,9 +219,9 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   const tc = TEAM_COLORS[team];
   const top = topStyle(outfit?.top);
   const bottom = bottomStyle(outfit?.bottom);
-  const furMat = std(P.fur, { tex: 'fur', rx: 2 });
+  const furMat = std(P.fur, { tex: 'fur', rx: 2, shadow: 0xd9c5d8, rim: 0.22 });
   // anime-style faces stay mostly lit: the terminator is pushed far back
-  const faceMat = std(P.face, { tex: 'fur', rx: 2, step: 0.28 });
+  const faceMat = std(P.face, { tex: 'soft', step: 0.52, shadow: 0xe5cfda, rim: 0.16 });
   const accMat = std(P.accent, { tex: 'fur', rx: 2 });
   const innerMat = std(P.inner, { tex: 'soft' });
   // private instances: team colors are mutated per character by setTeam()
@@ -208,7 +278,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   const legR = mkLeg(-0.15);
 
   // ---- torso: pear shirt + shorts
-  const torso = mk(sphere(0.36), shirtMat);
+  const torso = mk(pearTorso(), shirtMat);
   torso.scale.set(1, 1.02, 0.9);
   torso.position.y = 0.64;
   body.add(torso);
@@ -283,6 +353,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   // ---- head
   const head = new THREE.Group();
   head.position.y = 1.28;
+  head.scale.set(...HEAD_SHAPE[animal]);
   body.add(head);
   const skull = mk(sphere(HR, 36, 28), furMat);
   skull.scale.set(HSX, HSY, HSZ);
@@ -290,13 +361,9 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
 
   // penguin face mask / panda patches / tanuki mask
   if (isPenguin) {
-    // white face mask sits just barely above the skull so the eyes can render on top of it
-    for (const s of [-1, 1]) {
-      const m = mk(sphere(0.22, 20, 16), faceMat, false);
-      m.scale.set(1, 1.15, 0.3);
-      onFace(m, s * 0.14, -0.02, -0.058);
-      head.add(m);
-    }
+    const mask = mk(penguinFace(), faceMat, false);
+    mask.userData.noOutline = true;
+    head.add(mask);
   }
   const darkEyes = isPanda || animal === 'tanuki';
   if (darkEyes) {
@@ -324,7 +391,7 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
   // eyes (with highlights as children so they blink together)
   // layering (front surface offsets): skull 0 < dark patch/penguin mask ≈ +0.01 < sclera ≈ +0.03 < pupil ≈ +0.045
   const eyes: THREE.Mesh[] = [];
-  const eyeLift = darkEyes ? 0.012 : isPenguin ? 0.0 : -0.018;
+  const eyeLift = darkEyes ? 0.012 : isPenguin ? 0.017 : -0.018;
   for (const s of [-1, 1]) {
     if (darkEyes) {
       const sclera = mk(sphere(0.088, 18, 14), std(0xffffff, { rough: 0.3 }), false);
@@ -335,39 +402,58 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
     const e = mk(sphere(0.075, 20, 16), eyeMat, false);
     onFace(e, s * 0.19, 0.04, eyeLift);
     e.scale.set(0.85, 1.15, 0.45);
+    e.userData.noOutline = true;
     const sh1 = new THREE.Mesh(sphere(0.024, 10, 8), shineMat);
-    sh1.position.set(0.022, 0.03, 0.072);
+    // Highlights follow the actual ellipsoid surface (the old ones floated in front of the pupil).
+    sh1.position.set(-0.018, 0.025, 0.066);
+    sh1.scale.set(0.8, 1.15, 0.3);
+    sh1.userData.noOutline = true;
     e.add(sh1);
     const sh2 = new THREE.Mesh(sphere(0.011, 8, 6), shineMat);
-    sh2.position.set(-0.02, -0.03, 0.074);
+    sh2.position.set(0.023, -0.022, 0.067);
+    sh2.scale.z = 0.3;
+    sh2.userData.noOutline = true;
     e.add(sh2);
     head.add(e);
     eyes.push(e);
     // brows
-    const brow = mk(capsule(0.016, 0.06), std(isPanda ? 0x26262b : P.accent, { tex: 'soft' }), false);
-    onFace(brow, s * 0.2, 0.17, 0.004);
-    brow.rotateZ(Math.PI / 2 + s * 0.18);
-    head.add(brow);
+    if (!isPenguin) {
+      const brow = mk(capsule(0.016, 0.06), std(isPanda ? 0x26262b : P.accent, { tex: 'soft' }), false);
+      brow.userData.noOutline = true;
+      onFace(brow, s * 0.2, 0.17, 0.004);
+      brow.rotateZ(Math.PI / 2 + s * 0.18);
+      head.add(brow);
+    }
     // blush
     const bl = mk(sphere(0.07, 16, 10), blushMat, false);
     bl.scale.set(1.3, 0.75, 0.25);
-    onFace(bl, s * 0.33, -0.1, -0.005);
+    onFace(bl, s * 0.33, -0.1, isPenguin ? 0.018 : -0.005);
     head.add(bl);
   }
 
   // nose / beak + mouth
   if (isPenguin) {
-    const beak = mk(cone(0.075, 0.2, 14), std(P.accent, { rough: 0.4 }));
-    beak.rotation.x = Math.PI / 2;
-    beak.scale.set(1.3, 1, 0.7);
-    beak.position.set(0, -0.1, surfZ(0, -0.1) + 0.07);
-    head.add(beak);
+    const beakZ = surfZ(0, -0.10) + 0.035;
+    const upper = mk(sphere(0.10, 24, 16), std(P.accent, { kind: 'char', spec: 0.35 }));
+    upper.scale.set(1.12, 0.55, 0.90);
+    upper.position.set(0, -0.085, beakZ);
+    upper.userData.noOutline = true;
+    const lower = mk(sphere(0.08, 20, 14), std(0xee8d29, { kind: 'char' }));
+    lower.scale.set(1.18, 0.40, 0.90);
+    lower.position.set(0, -0.155, beakZ + 0.005);
+    lower.userData.noOutline = true;
+    const mouth = mk(sphere(0.08, 20, 12), std(0x6b321d, { kind: 'char', rim: 0 }));
+    mouth.scale.set(1.08, 0.18, 0.72);
+    mouth.position.set(0, -0.131, beakZ + 0.035);
+    mouth.userData.noOutline = true;
+    head.add(upper, mouth, lower);
   } else {
     const nose = mk(sphere(0.052, 16, 12), noseMat, false);
     nose.scale.set(1.35, 1, 0.9);
     nose.position.set(0, mx > 0 ? -0.065 : -0.07, muzzleFront - 0.01);
     head.add(nose);
     const mouth = mk(new THREE.TorusGeometry(0.042, 0.011, 6, 14, Math.PI), std(0x3a2522, { rough: 0.5 }), false);
+    mouth.userData.noOutline = true;
     mouth.rotation.z = Math.PI;
     mouth.position.set(0, -0.155, muzzleFront - (mx > 0 ? 0.025 : 0.04));
     head.add(mouth);
@@ -434,10 +520,14 @@ export function buildCharacter(animal: Animal, team: Team, isPlayer: boolean, ou
       i.rotation.z = -s * 0.32;
       head.add(i);
       if (animal === 'fox') {
-        const tip = mk(cone(0.07, 0.12, 12), accMat, false);
-        tip.scale.set(1, 1, 0.6);
-        tip.position.set(s * 0.36, 0.6, -0.03);
-        tip.rotation.z = -s * 0.32;
+        // The dark cap shares the outer ear's axis and apex instead of floating above it.
+        const tipHeight = h * 0.32;
+        const tip = mk(cone(0.15 * tipHeight / h, tipHeight, 18), accMat, false);
+        tip.scale.copy(e.scale).multiplyScalar(1.015);
+        tip.position.copy(e.position);
+        tip.rotation.copy(e.rotation);
+        tip.translateY((h - tipHeight) / 2);
+        tip.userData.outlineScale = 0.65;
         head.add(tip);
       }
     }

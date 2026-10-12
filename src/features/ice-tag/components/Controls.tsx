@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { ItemIcon, RasterIcon } from './RasterUI';
 import type { HudState } from '../game/types';
 import { ITEM_INFO } from '../game/types';
 import { KEY_HINT, MOUSE_HINT, pcRowsFor } from '../game/keys';
@@ -71,7 +73,7 @@ export function Joystick({ onMove, disabled, ui = 1 }: { onMove: (x: number, y: 
 }
 
 interface BtnProps {
-  label: string; icon: string; onPress: () => void; disabled?: boolean; size: number; color: string; style: React.CSSProperties; glow?: boolean; cooldown?: number; badge?: string; keyHint?: string;
+  label: string; icon: ReactNode; onPress: () => void; disabled?: boolean; size: number; color: string; style: React.CSSProperties; glow?: boolean; cooldown?: number; badge?: string; keyHint?: string;
 }
 
 /** small key label shown UNDER a control on PC (e.g. "Shift / L") */
@@ -112,7 +114,7 @@ function ActionBtn({ label, icon, onPress, disabled, size, color, style, glow, c
       onContextMenu={(e) => e.preventDefault()}
     >
       {cooldown > 0 && <div className="absolute inset-0 rounded-full pointer-events-none" style={{ background: `conic-gradient(rgba(20,30,50,0.6) ${cooldown * 360}deg, transparent 0deg)` }} />}
-      <span className="relative leading-none" style={{ fontSize: size * 0.36 }}>{icon}</span>
+      <span className="relative leading-none flex items-center justify-center" style={{ fontSize: size * 0.36 }}>{icon}</span>
       <span className="relative font-black text-white txt-outline-sm leading-none mt-0.5" style={{ fontSize: Math.max(10, size * 0.15) }}>{label}</span>
       {badge && <span className="absolute -top-1 -right-1 bg-yellow-300 text-slate-800 text-[11px] font-black rounded-full px-1.5 border-2 border-white">{badge}</span>}
       {keyHint && <KeyTag text={keyHint} />}
@@ -192,10 +194,10 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
       <div className="relative w-full h-full pointer-events-auto">
         {/* MAIN slot: 던지기 (오재미) · 얼음! (도망자) · 찾았다! (숨바꼭질 술래) · 숨기/해제 (숨바꼭질 도망자) */}
         {hud.mode === 'ojaemi' && (
-          <ActionBtn label="던지기" icon="🎯" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#ffa94d,#e8622a)" disabled={st || !hud.hasBag || hud.throwing} onPress={onPrimary} badge={hud.hasBag ? '1' : '0'} keyHint={hint(hud.mode === 'ojaemi' && control === 'mouse' ? '좌클릭' : H.primary)} />
+          <ActionBtn label={hud.hasBag ? '던지기' : '주워야 해요'} icon={<RasterIcon name="bag" size={u(42)} />} size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#ffa94d,#e8622a)" disabled={st || !hud.hasBag || hud.throwing} onPress={onPrimary} badge={hud.hasBag ? '1' : '0'} keyHint={hint(hud.mode === 'ojaemi' && control === 'mouse' ? '좌클릭' : H.primary)} />
         )}
         {isRunner && (
-          <ActionBtn label="얼음!" icon="❄️" size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#7fd0ff,#2378d8)" disabled={st || !hud.canFreeze} cooldown={hud.freezeCd} glow={hud.danger && hud.canFreeze && !hud.lastAlive} onPress={onPrimary} keyHint={hint(H.primary)} />
+          <ActionBtn label="얼음!" icon={<RasterIcon name="ice" size={u(42)} />} size={u(slot.main.size)} style={pos(slot.main)} color="linear-gradient(180deg,#7fd0ff,#2378d8)" disabled={st || !hud.canFreeze} cooldown={hud.freezeCd} glow={hud.danger && hud.canFreeze && !hud.lastAlive} onPress={onPrimary} keyHint={hint(H.primary)} />
         )}
         {isHideTagger && (
           <ActionBtn
@@ -235,10 +237,10 @@ export function ActionButtons({ hud, onPrimary, onDash, onItem, onSpectate, ui =
           </div>
         )}
         {/* 땡은 버튼 없이 닿으면 자동 구조. 대시 & 아이템은 모든 모드 / 역할에서 일관된 위치 */}
-        <ActionBtn label="대시" icon="💨" size={u(slot.dash.size)} style={pos(slot.dash)} color="linear-gradient(180deg,#7ee8a8,#23a861)" disabled={st || hud.dashCd > 0} cooldown={hud.dashCd} onPress={onDash} keyHint={hint(H.dash)} />
+        <ActionBtn label="대시" icon={<RasterIcon name="dash" size={u(32)} />} size={u(slot.dash.size)} style={pos(slot.dash)} color="linear-gradient(180deg,#7ee8a8,#23a861)" disabled={st || hud.dashCd > 0} cooldown={hud.dashCd} onPress={onDash} keyHint={hint(H.dash)} />
         <ActionBtn
           label={hud.item ? ITEM_INFO[hud.item].name : '아이템'}
-          icon={hud.item ? ITEM_INFO[hud.item].emoji : '🎁'}
+          icon={hud.item ? <ItemIcon item={hud.item} size={u(25)} /> : <RasterIcon name="gift" size={u(32)} />}
           size={u(slot.item.size)}
           style={pos(slot.item)}
           color="linear-gradient(180deg,#ff9ee0,#d8479f)"

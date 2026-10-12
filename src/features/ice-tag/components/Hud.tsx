@@ -1,6 +1,7 @@
 import type { HudState, Toast, PlayerStat } from '../game/types';
 import { ANIMAL_INFO, STAGES, TEAM_SIZE_INFO } from '../game/types';
 import { Portrait } from './Portrait';
+import { RasterIcon } from './RasterUI';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function fmtTime(t: number) { const s = Math.max(0, Math.ceil(t)); return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`; }
@@ -106,7 +107,7 @@ export function TopBar({ hud, onPause }: { hud: HudState; onPause: () => void })
         )}
       </div>
       <button className="pointer-events-auto absolute w-10 h-10 rounded-full bg-slate-900/60 border-2 border-white/80 text-white font-black text-lg flex items-center justify-center" style={{ top: 'max(8px, env(safe-area-inset-top))', right: 'calc(8px + env(safe-area-inset-right))' }} onPointerDown={(e) => { e.stopPropagation(); onPause(); }}>
-        ❚❚
+        <span className="sr-only">일시정지</span><RasterIcon name="pause" size={30} />
       </button>
     </div>
   );
