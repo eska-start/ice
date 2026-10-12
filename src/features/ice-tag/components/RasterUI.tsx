@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react';
 import type { ItemType } from '../game/types';
+import { ICON_RECTS, ITEM_RECTS, type SpriteRect } from './ui-atlas';
 
 const ICONS = {
   ice: 0, bag: 1, play: 2, friends: 3, paw: 4, shop: 5, book: 6, settings: 7,
@@ -7,23 +7,27 @@ const ICONS = {
 } as const;
 export type RasterIconName = keyof typeof ICONS;
 
+function Sprite({ rect, source, atlasWidth, atlasHeight, size, className }: {
+  rect: SpriteRect; source: string; atlasWidth: number; atlasHeight: number; size: number; className: string;
+}) {
+  const [x, y, width, height] = rect;
+  const scale = size * 0.94 / Math.max(width, height);
+  return <span aria-hidden="true" className={`raster-icon ${className}`} style={{ width: size, height: size }}>
+    <span className="raster-icon-image" style={{
+      width: width * scale, height: height * scale,
+      backgroundImage: `url(${source})`,
+      backgroundSize: `${atlasWidth * scale}px ${atlasHeight * scale}px`,
+      backgroundPosition: `${-x * scale}px ${-y * scale}px`,
+    }} />
+  </span>;
+}
+
 /** Decorative sprites retain native button labels and never intercept input. */
 export function RasterIcon({ name, size = 32, className = '' }: { name: RasterIconName; size?: number; className?: string }) {
-  const index = ICONS[name];
-  const style: CSSProperties = {
-    width: size, height: size,
-    backgroundImage: 'url(/ui/icon-atlas.png)', backgroundSize: '400% 400%',
-    backgroundPosition: `${(index % 4) * 100 / 3}% ${Math.floor(index / 4) * 100 / 3}%`,
-  };
-  return <span aria-hidden="true" className={`raster-icon ${className}`} style={style} />;
+  return <Sprite rect={ICON_RECTS[ICONS[name]]} source="/ui/icon-atlas.png" atlasWidth={768} atlasHeight={768} size={size} className={className} />;
 }
 
 const ITEM_INDEX: Record<ItemType, number> = { moto: 0, ufo: 1, banana: 2, missile: 3, jelly: 4 };
 export function ItemIcon({ item, size = 28, className = '' }: { item: ItemType; size?: number; className?: string }) {
-  const index = ITEM_INDEX[item];
-  return <span aria-hidden="true" className={`raster-icon ${className}`} style={{
-    width: size * 2.25, height: size,
-    backgroundImage: 'url(/ui/item-atlas.png)', backgroundSize: '200% 300%',
-    backgroundPosition: `${(index % 2) * 100}% ${Math.floor(index / 2) * 50}%`,
-  }} />;
+  return <Sprite rect={ITEM_RECTS[ITEM_INDEX[item]]} source="/ui/item-atlas.png" atlasWidth={960} atlasHeight={640} size={size} className={className} />;
 }

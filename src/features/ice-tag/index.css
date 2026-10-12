@@ -143,7 +143,8 @@ body,
 .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: #d7dde6; }
 
 /* Generated PNG artwork, shared by the title and in-game controls. */
-.raster-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; background-repeat: no-repeat; pointer-events: none; clip-path: inset(6%); }
+.raster-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; vertical-align: middle; pointer-events: none; }
+.raster-icon-image { display: block; flex-shrink: 0; background-repeat: no-repeat; }
 .game-title-logo { display: block; width: min(300px, 76vw); height: auto; max-height: 150px; object-fit: contain; margin: 0 auto; }
 .game-title-logo-small { width: 170px; max-height: 85px; }
 .title-screen button:focus-visible { outline: 3px solid #276681; outline-offset: 3px; }
